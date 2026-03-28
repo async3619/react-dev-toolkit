@@ -93,6 +93,22 @@ export function estimateMaxWidth(flat: FlatNode[]): number {
   return max
 }
 
+export function findAncestorPath(
+  nodes: ComponentNode[],
+  targetId: number,
+): ComponentNode[] | null {
+  const search = (list: ComponentNode[], path: ComponentNode[]): ComponentNode[] | null => {
+    for (const node of list) {
+      const current = [...path, node]
+      if (node.id === targetId) return current
+      const found = search(node.children, current)
+      if (found) return found
+    }
+    return null
+  }
+  return search(nodes, [])
+}
+
 export function buildFlatList(
   nodes: ComponentNode[],
   expandedIds: Set<number>,

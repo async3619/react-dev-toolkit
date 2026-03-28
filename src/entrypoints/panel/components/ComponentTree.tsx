@@ -30,6 +30,7 @@ export function ComponentTree({
   onConsumeInspectedNodeId,
 }: ComponentTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const sidebarScrollRef = useRef<HTMLDivElement>(null)
   const [firstPartyOnly, setFirstPartyOnly] = useState(false)
 
   const {
@@ -149,7 +150,8 @@ export function ComponentTree({
   return (
     <ResizablePanel
       left={treePanel}
-      right={<PropsPanel node={selectedNode} />}
+      right={<PropsPanel node={selectedNode} tree={tree} onSelectNode={handleSelect} scrollRef={sidebarScrollRef} />}
+      rightScrollRef={sidebarScrollRef}
     />
   )
 }

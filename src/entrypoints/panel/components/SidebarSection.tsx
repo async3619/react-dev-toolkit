@@ -4,10 +4,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 interface SidebarSectionProps {
   title: string;
   defaultOpen?: boolean;
+  noPadding?: boolean;
   children: ReactNode;
 }
 
-export function SidebarSection({ title, defaultOpen = true, children }: SidebarSectionProps) {
+export function SidebarSection({ title, defaultOpen = true, noPadding = false, children }: SidebarSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -20,7 +21,7 @@ export function SidebarSection({ title, defaultOpen = true, children }: SidebarS
         <span className="text-gray-500">{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
         {title}
       </button>
-      {open && <div className="px-3 pb-3">{children}</div>}
+      {open && <div className={noPadding ? "" : "px-3 pb-3"}>{children}</div>}
     </div>
   );
 }

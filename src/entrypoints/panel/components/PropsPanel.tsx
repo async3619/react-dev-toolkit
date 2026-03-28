@@ -1,12 +1,17 @@
+import type { RefObject } from "react";
 import type { ComponentNode } from "@/types";
 import { PropValue } from "./PropValue";
+import { RenderTree } from "./RenderTree";
 import { SidebarSection } from "./SidebarSection";
 
 interface PropsPanelProps {
   node: ComponentNode | null;
+  tree: ComponentNode[];
+  onSelectNode: (node: ComponentNode) => void;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
-export function PropsPanel({ node }: PropsPanelProps) {
+export function PropsPanel({ node, tree, onSelectNode, scrollRef }: PropsPanelProps) {
   if (!node) {
     return (
       <div className="p-4 text-gray-500 text-sm">
@@ -40,6 +45,12 @@ export function PropsPanel({ node }: PropsPanelProps) {
           </div>
         )}
       </SidebarSection>
+      <RenderTree
+        tree={tree}
+        selectedNode={node}
+        onSelect={onSelectNode}
+        scrollRef={scrollRef}
+      />
     </div>
   );
 }
