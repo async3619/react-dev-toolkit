@@ -25,17 +25,32 @@ function hookMatches(hook: HookInfo, filter: string): boolean {
 }
 
 function openHookSource(source: { fileName: string; lineNumber: number; columnNumber?: number }) {
-  // Try chrome.devtools.panels.openResource first (opens Sources panel)
-  const panels = (globalThis as unknown as Record<string, unknown>).chrome as
-    | { devtools?: { panels?: { openResource?: (url: string, line: number, col?: number, cb?: () => void) => void } } }
+  // Extract a short path for matching (strip webpack-internal:/// etc.)
+  const shortPath = source.fileName
+    .replace(/^webpack-internal:\/\/\//, "")
+    .replace(/^webpack:\/\/[^/]*\//, "")
+    .replace(/^\.\//, "")
+    .replace(/\?.*$/, "");
+
+  const chromeApi = (globalThis as unknown as Record<string, unknown>).chrome as
+    | { devtools?: { inspectedWindow?: { getResources?: (cb: (resources: { url: string }[]) => void) => void }; panels?: { openResource?: (url: string, line: number, col: number) => void } } }
     | undefined;
-  const openResource = panels?.devtools?.panels?.openResource;
-  if (openResource) {
-    openResource(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0, () => {
-      // openResource callback — no-op, but required for some Chrome versions
+
+  const getResources = chromeApi?.devtools?.inspectedWindow?.getResources;
+  const openResource = chromeApi?.devtools?.panels?.openResource;
+
+  if (getResources && openResource) {
+    getResources((resources) => {
+      // Find a resource URL that ends with our short path
+      const match = resources.find((r) => r.url.includes(shortPath));
+      if (match) {
+        openResource(match.url, source.lineNumber - 1, source.columnNumber ?? 0);
+      } else {
+        // Try raw fileName as last resort
+        openResource(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0);
+      }
     });
   } else {
-    // Fallback to editor
     openInEditor(source.fileName, source.lineNumber, source.columnNumber);
   }
 }
