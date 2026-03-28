@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ComponentNode } from "@/types";
 import { findAncestorPath } from "../utils/tree";
-import { formatSourceLocation } from "../utils/format";
+import { cleanSourcePath, formatSourceLocation } from "../utils/format";
 import { SidebarSection } from "./SidebarSection";
 
 const ROW_HEIGHT_WITHOUT_SOURCE = 26;

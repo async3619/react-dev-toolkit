@@ -3,6 +3,7 @@ import type { ComponentNode } from "@/types";
 import { PropValue } from "./PropValue";
 import { RenderTree } from "./RenderTree";
 import { SidebarSection } from "./SidebarSection";
+import { SourceSection } from "./SourceSection";
 
 interface PropsPanelProps {
   node: ComponentNode | null;
@@ -51,6 +52,7 @@ export function PropsPanel({ node, tree, onSelectNode, scrollRef }: PropsPanelPr
         onSelect={onSelectNode}
         scrollRef={scrollRef}
       />
+      <SourceSection node={node} />
     </div>
   );
 }
