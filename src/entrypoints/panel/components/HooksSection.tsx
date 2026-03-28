@@ -1,4 +1,4 @@
-import { useState, useMemo, useDeferredValue } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
@@ -79,12 +79,18 @@ interface HooksSectionProps {
 
 export function HooksSection({ hooks }: HooksSectionProps) {
   const [filter, setFilter] = useState("");
-  const deferredFilter = useDeferredValue(filter);
+  const [appliedFilter, setAppliedFilter] = useState("");
+  const [, startTransition] = useTransition();
+
+  const handleFilterChange = (value: string) => {
+    setFilter(value);
+    startTransition(() => setAppliedFilter(value));
+  };
 
   const filtered = useMemo(() => {
-    if (!deferredFilter) return hooks;
-    return hooks.filter((hook) => hookMatches(hook, deferredFilter));
-  }, [hooks, deferredFilter]);
+    if (!appliedFilter) return hooks;
+    return hooks.filter((hook) => hookMatches(hook, appliedFilter));
+  }, [hooks, appliedFilter]);
 
   return (
     <SidebarSection title={`Hooks (${hooks.length})`}>
@@ -93,7 +99,7 @@ export function HooksSection({ hooks }: HooksSectionProps) {
         <input
           type="text"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => handleFilterChange(e.target.value)}
           placeholder="Filter by name or ID..."
           className="w-full bg-gray-800 border border-gray-700 rounded text-xs text-gray-300 py-1 pl-6 pr-2 focus:outline-none focus:border-blue-500 placeholder-gray-600"
         />
@@ -103,7 +109,7 @@ export function HooksSection({ hooks }: HooksSectionProps) {
           <p className="text-gray-500 text-xs">No matching hooks.</p>
         ) : (
           filtered.map((hook, i) => (
-            <HookEntry key={i} hook={hook} forceExpand={!!deferredFilter} filter={deferredFilter} />
+            <HookEntry key={i} hook={hook} forceExpand={!!appliedFilter} filter={appliedFilter} />
           ))
         )}
       </div>
