@@ -1,20 +1,20 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { ComponentNode } from "@/types";
-import { TreeNode } from "./TreeNode";
-import { TreeFilter } from "./TreeFilter";
-import { PropsPanel } from "./PropsPanel";
-import { ResizablePanel } from "./ResizablePanel";
-import { useTreeNavigation } from "../hooks/useTreeNavigation";
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ComponentNode } from '@/types'
+import { useTreeNavigation } from '../hooks/useTreeNavigation'
+import { PropsPanel } from './PropsPanel'
+import { ResizablePanel } from './ResizablePanel'
+import { TreeFilter } from './TreeFilter'
+import { TreeNode } from './TreeNode'
 
 interface ComponentTreeProps {
-  tree: ComponentNode[];
-  onHighlight: (nodeId: number, nodeName: string) => void;
-  onHideHighlight: () => void;
-  inspecting: boolean;
-  inspectedNodeId: number | null;
-  onStartInspect: () => void;
-  onStopInspect: () => void;
-  onConsumeInspectedNodeId: () => number | null;
+  tree: ComponentNode[]
+  onHighlight: (nodeId: number, nodeName: string) => void
+  onHideHighlight: () => void
+  inspecting: boolean
+  inspectedNodeId: number | null
+  onStartInspect: () => void
+  onStopInspect: () => void
+  onConsumeInspectedNodeId: () => number | null
 }
 
 export function ComponentTree({
@@ -27,7 +27,9 @@ export function ComponentTree({
   onStopInspect,
   onConsumeInspectedNodeId,
 }: ComponentTreeProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [firstPartyOnly, setFirstPartyOnly] = useState(false)
+
   const {
     filter,
     setFilter,
@@ -40,40 +42,42 @@ export function ComponentTree({
     toggleExpand,
     collapseWithChildren,
     handleKeyDown,
-  } = useTreeNavigation(tree);
+  } = useTreeNavigation(tree, firstPartyOnly)
 
   // When an element is inspected on the page, select it in the tree
   useEffect(() => {
     if (inspectedNodeId !== null) {
-      selectById(inspectedNodeId);
-      onConsumeInspectedNodeId();
+      selectById(inspectedNodeId)
+      onConsumeInspectedNodeId()
     }
-  }, [inspectedNodeId, selectById, onConsumeInspectedNodeId]);
+  }, [inspectedNodeId, selectById, onConsumeInspectedNodeId])
 
   const handleSelect = useCallback(
     (node: ComponentNode) => {
-      select(node);
-      onHighlight(node.id, node.name);
-      containerRef.current?.focus();
+      select(node)
+      onHighlight(node.id, node.name)
+      containerRef.current?.focus()
     },
     [select, onHighlight],
-  );
+  )
 
   const handleToggleInspect = useCallback(() => {
     if (inspecting) {
-      onStopInspect();
+      onStopInspect()
     } else {
-      onStartInspect();
+      onStartInspect()
     }
-  }, [inspecting, onStartInspect, onStopInspect]);
+  }, [inspecting, onStartInspect, onStopInspect])
 
   const treePanel = (
-    <>
+    <div className="relative flex flex-col h-full">
       <TreeFilter
         value={filter}
         onChange={setFilter}
         inspecting={inspecting}
         onToggleInspect={handleToggleInspect}
+        firstPartyOnly={firstPartyOnly}
+        onFirstPartyOnlyChange={setFirstPartyOnly}
       />
       <div
         ref={containerRef}
@@ -82,7 +86,9 @@ export function ComponentTree({
         onKeyDown={handleKeyDown}
       >
         {filteredTree.length === 0 && filter && (
-          <div className="p-4 text-gray-500 text-sm">No matching components.</div>
+          <div className="p-4 text-gray-500 text-sm">
+            No matching components.
+          </div>
         )}
         {filteredTree.map((node) => (
           <TreeNode
@@ -100,13 +106,13 @@ export function ComponentTree({
           />
         ))}
       </div>
-    </>
-  );
+    </div>
+  )
 
   return (
     <ResizablePanel
       left={treePanel}
       right={<PropsPanel node={selectedNode} />}
     />
-  );
+  )
 }

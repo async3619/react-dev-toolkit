@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatPrimitive } from "../utils/format";
 
 interface PropValueProps {
@@ -40,7 +41,7 @@ export function PropValue({ value, depth = 0 }: PropValueProps) {
         className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none"
         onClick={() => setExpanded(!expanded)}
       >
-        {expanded ? "▾" : "▸"}{" "}
+        {expanded ? <ChevronDown size={12} className="inline" /> : <ChevronRight size={12} className="inline" />}{" "}
         {!expanded && <span className="text-gray-400">{preview}</span>}
       </button>
       {expanded && (

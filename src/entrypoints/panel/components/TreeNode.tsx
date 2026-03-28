@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ComponentNode } from "@/types";
 import { highlightName } from "../utils/highlight";
 
@@ -54,7 +55,7 @@ export function TreeNode({ node, depth, filter, expandedIds, selectedId, onSelec
             className="w-4 h-4 flex items-center justify-center text-gray-500 mr-1 shrink-0"
             onClick={handleToggle}
           >
-            {expanded ? "▾" : "▸"}
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
         ) : (
           <span className="w-4 h-4 mr-1 shrink-0" />
