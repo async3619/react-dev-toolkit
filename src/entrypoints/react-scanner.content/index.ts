@@ -907,11 +907,18 @@ window.addEventListener("message", (event) => {
 
 // --- Hooks inspection ---
 
+interface HookSource {
+  fileName: string;
+  lineNumber: number;
+  columnNumber?: number;
+}
+
 interface HookInfo {
   id: number | null;
   name: string;
   value: unknown;
   subHooks: HookInfo[];
+  source?: HookSource | null;
 }
 
 interface HookLogEntry {
@@ -1442,11 +1449,17 @@ function buildHookTree(
       for (let j = stack.length - commonSteps - 1; j >= 1; j--) {
         const children: HookInfo[] = [];
         const customHookName = parseHookName(stack[j - 1].functionName);
+        const srcFrame = stack[j];
         const levelChild: HookInfo = {
           id: null,
           name: toUsePrefix(customHookName || "Unknown"),
           value: undefined,
           subHooks: children,
+          source: srcFrame?.fileName ? {
+            fileName: srcFrame.fileName,
+            lineNumber: srcFrame.lineNumber ?? 0,
+            columnNumber: srcFrame.columnNumber,
+          } : null,
         };
         levelChildren.push(levelChild);
         stackOfChildren.push(levelChildren);
@@ -1461,11 +1474,17 @@ function buildHookTree(
 
     // Context and DebugValue hooks don't get an ID (not stateful)
     const noId = hook.primitive === "Context" || hook.primitive === "Context (use)" || hook.primitive === "DebugValue";
+    const leafSource = stack && stack.length >= 1 ? stack[0] : null;
     const leafChild: HookInfo = {
       id: noId ? null : nativeHookID++,
       name,
       value: serializeValue(hook.value, 0),
       subHooks: [],
+      source: leafSource?.fileName ? {
+        fileName: leafSource.fileName,
+        lineNumber: leafSource.lineNumber ?? 0,
+        columnNumber: leafSource.columnNumber,
+      } : null,
     };
     levelChildren.push(leafChild);
   }

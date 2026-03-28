@@ -1,5 +1,5 @@
 import { useState, useMemo, useTransition } from "react";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Search } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
 import { SidebarSection } from "./SidebarSection";
@@ -23,6 +23,19 @@ function hookMatches(hook: HookInfo, filter: string): boolean {
   return hook.subHooks.some((sub) => hookMatches(sub, filter));
 }
 
+function openHookSource(source: { fileName: string; lineNumber: number; columnNumber?: number }) {
+  // Chrome DevTools API to open a resource in the Sources panel
+  // lineNumber is 0-based in this API
+  browser.devtools.inspectedWindow.eval(
+    `inspect(new Function("/* ${source.fileName}:${source.lineNumber} */"))`,
+  );
+  // Use openResource which handles source maps
+  const panels = (globalThis as unknown as Record<string, unknown>).chrome as
+    | { devtools?: { panels?: { openResource?: (url: string, line: number, col: number) => void } } }
+    | undefined;
+  panels?.devtools?.panels?.openResource?.(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0);
+}
+
 function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEntryProps) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = hook.subHooks.length > 0;
@@ -30,6 +43,7 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
   const custom = isCustomHook(hook);
   const nameColor = custom ? "text-yellow-300" : "text-blue-400";
   const showValue = hook.value !== undefined;
+  const hasSource = hook.source?.fileName;
   const isDirectMatch = filter && (
     hook.name.toLowerCase().includes(filter.toLowerCase()) ||
     (hook.id !== null && String(hook.id) === filter)
@@ -64,6 +78,17 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
               <PropValue value={hook.value} />
             </div>
           </>
+        )}
+        {hasSource && (
+          <Tooltip content={`${hook.source!.fileName}:${hook.source!.lineNumber}`}>
+            <button
+              type="button"
+              className="text-gray-600 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 mt-0.5"
+              onClick={() => openHookSource(hook.source!)}
+            >
+              <Code2 size={12} />
+            </button>
+          </Tooltip>
         )}
       </div>
       {isOpen && hasChildren && (

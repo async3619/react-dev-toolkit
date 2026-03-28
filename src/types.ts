@@ -16,11 +16,18 @@ export interface ComponentNode {
   sourceLocation?: SourceLocation;
 }
 
+export interface HookSource {
+  fileName: string;
+  lineNumber: number;
+  columnNumber?: number;
+}
+
 export interface HookInfo {
   id: number | null;
   name: string;
   value: unknown;
   subHooks: HookInfo[];
+  source?: HookSource | null;
 }
 
 export type MessageType =
