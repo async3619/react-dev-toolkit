@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatPrimitive } from "../utils/format";
+import { Tooltip } from "./Tooltip";
 
 interface PropValueProps {
   value: unknown;
@@ -18,7 +19,11 @@ export function PropValue({ value, depth = 0 }: PropValueProps) {
     } else if (typeof value === "number") {
       colorClass = "text-blue-400";
     }
-    return <span className={`${colorClass} truncate block`} title={formatted}>{formatted}</span>;
+    return (
+      <Tooltip content={formatted}>
+        <span className={`${colorClass} truncate block`}>{formatted}</span>
+      </Tooltip>
+    );
   }
 
   const isArray = Array.isArray(value);
