@@ -1,17 +1,18 @@
-import { defineConfig } from "wxt";
-import tailwindcss from "@tailwindcss/vite";
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'wxt'
 
 export default defineConfig({
-  srcDir: "src",
-  modules: ["@wxt-dev/module-react"],
+  srcDir: 'src',
+  modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: "React Dev Toolkit",
-    description: "Developer toolkit for inspecting and debugging React applications",
-    version: "0.1.0",
-    permissions: ["storage"],
-    devtools_page: "devtools.html",
+    name: 'React Dev Toolkit',
+    description:
+      'Developer toolkit for inspecting and debugging React applications',
+    version: '0.1.0',
+    permissions: ['storage'],
+    devtools_page: 'devtools.html',
   },
   vite: () => ({
     plugins: [tailwindcss()],
   }),
-});
+})

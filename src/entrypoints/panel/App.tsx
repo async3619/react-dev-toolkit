@@ -18,5 +18,5 @@ export default function App() {
         {activeTab === "Components" && <ComponentsTab />}
       </main>
     </div>
-  );
+  )
 }
