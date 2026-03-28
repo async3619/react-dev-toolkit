@@ -51,7 +51,7 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
 
   return (
     <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
-      <div className={`flex items-start gap-1 text-sm min-w-0${isDirectMatch ? " bg-yellow-500/15 rounded px-1 -mx-1" : ""}`}>
+      <div className={`group flex items-start gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}`}>
         {hasChildren ? (
           <button
             type="button"
@@ -83,7 +83,7 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
           <Tooltip content={`${hook.source!.fileName}:${hook.source!.lineNumber}`}>
             <button
               type="button"
-              className="text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center"
+              className="text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => openHookSource(hook.source!)}
             >
               <Code2 size={14} />
