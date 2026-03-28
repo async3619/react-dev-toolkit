@@ -51,12 +51,15 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
 
   return (
     <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
-      <div className={`group flex items-center gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}`}>
+      <div
+        className={`group flex items-center gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}${hasSource ? " cursor-pointer" : ""}`}
+        onClick={() => hasSource && openHookSource(hook.source!)}
+      >
         {hasChildren ? (
           <button
             type="button"
             className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none shrink-0 mt-0.5"
-            onClick={() => setExpanded(!expanded)}
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
           >
             {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
@@ -84,7 +87,7 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
             <button
               type="button"
               className="ml-auto text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => openHookSource(hook.source!)}
+              onClick={(e) => { e.stopPropagation(); openHookSource(hook.source!); }}
             >
               <Code size={14} />
             </button>
