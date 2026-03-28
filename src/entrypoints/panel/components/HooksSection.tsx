@@ -126,7 +126,7 @@ export function HooksSection({ hooks }: HooksSectionProps) {
 
   return (
     <SidebarSection title={`Hooks (${hooks.length})`}>
-      <div className="mb-2 relative">
+      <div className="mt-1 mb-2 relative">
         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
         <input
           type="text"
