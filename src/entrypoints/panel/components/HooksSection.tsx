@@ -14,7 +14,7 @@ function isCustomHook(hook: HookInfo): boolean {
 }
 
 function HookEntry({ hook, depth = 0 }: HookEntryProps) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  const [expanded, setExpanded] = useState(false);
   const hasChildren = hook.subHooks.length > 0;
   const custom = isCustomHook(hook);
   const nameColor = custom ? "text-yellow-300" : "text-blue-400";
