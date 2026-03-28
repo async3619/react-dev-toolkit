@@ -1,32 +1,30 @@
 export default defineBackground(() => {
-  console.log('React Dev Toolkit background service worker loaded')
-
   // Relay messages between devtools panel and content script
   browser.runtime.onConnect.addListener((port) => {
-    if (port.name === 'devtools') {
-      port.onMessage.addListener((message) => {
-        // Forward messages from devtools to the active tab's content script
-        browser.tabs
-          .query({ active: true, currentWindow: true })
-          .then(([tab]) => {
-            if (tab?.id) {
-              browser.tabs.sendMessage(tab.id, message)
-            }
-          })
-      })
+    // Port name format: "devtools:<tabId>"
+    if (!port.name.startsWith('devtools:')) return
 
-      // Forward messages from content script back to devtools
-      const listener = (
-        message: unknown,
-        _sender: Browser.runtime.MessageSender,
-      ) => {
+    const tabId = Number(port.name.split(':')[1])
+    if (!tabId) return
+
+    // Forward messages from devtools to the inspected tab's content script
+    port.onMessage.addListener((message) => {
+      browser.tabs.sendMessage(tabId, message)
+    })
+
+    // Forward messages from the inspected tab's content script back to devtools
+    const listener = (
+      message: unknown,
+      sender: Browser.runtime.MessageSender,
+    ) => {
+      if (sender.tab?.id === tabId) {
         port.postMessage(message)
       }
-      browser.runtime.onMessage.addListener(listener)
-
-      port.onDisconnect.addListener(() => {
-        browser.runtime.onMessage.removeListener(listener)
-      })
     }
+    browser.runtime.onMessage.addListener(listener)
+
+    port.onDisconnect.addListener(() => {
+      browser.runtime.onMessage.removeListener(listener)
+    })
   })
 })
