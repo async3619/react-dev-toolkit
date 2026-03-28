@@ -526,6 +526,9 @@ function findReactRoots(): FiberNode[] {
   return roots;
 }
 
+// Buffer to store the latest scan result before the panel connects
+let bufferedMessage: Record<string, unknown> | null = null;
+
 function scanTree() {
   nodeIdCounter = 0;
   nodeToElementMap.clear();
@@ -534,7 +537,11 @@ function scanTree() {
   const fiberRoots = findReactRoots();
 
   if (fiberRoots.length === 0) {
-    window.postMessage({ type: "REACT_NOT_FOUND" }, "*");
+    const msg = { type: "REACT_NOT_FOUND" };
+    bufferedMessage = msg;
+    if (watching) {
+      window.postMessage(msg, "*");
+    }
     return;
   }
 
@@ -543,7 +550,11 @@ function scanTree() {
     walkFiber(root, tree);
   }
 
-  window.postMessage({ type: "REACT_TREE_RESULT", tree }, "*");
+  const msg = { type: "REACT_TREE_RESULT", tree };
+  bufferedMessage = msg;
+  if (watching) {
+    window.postMessage(msg, "*");
+  }
 }
 
 // --- Highlight overlay ---
@@ -707,7 +718,12 @@ function startWatching() {
   }
   watching = true;
 
-  // Scan immediately without waiting for source maps
+  // Send buffered result immediately so the panel doesn't wait for a fresh scan
+  if (bufferedMessage) {
+    window.postMessage(bufferedMessage, "*");
+  }
+
+  // Then do a fresh scan for the most up-to-date tree
   scanTree();
   hookIntoReact();
 
@@ -783,6 +799,9 @@ export default defineContentScript({
   runAt: "document_idle",
   world: "MAIN",
   main() {
-    // Script is loaded — ready to receive watch/scan/highlight requests
+    // Start hooking into React and buffering results immediately,
+    // so data is ready when the DevTools panel connects.
+    hookIntoReact();
+    scanTree();
   },
 });
