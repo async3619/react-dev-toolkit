@@ -25,7 +25,19 @@ function hookMatches(hook: HookInfo, filter: string): boolean {
 }
 
 function openHookSource(source: { fileName: string; lineNumber: number; columnNumber?: number }) {
-  openInEditor(source.fileName, source.lineNumber, source.columnNumber);
+  // Try chrome.devtools.panels.openResource first (opens Sources panel)
+  const panels = (globalThis as unknown as Record<string, unknown>).chrome as
+    | { devtools?: { panels?: { openResource?: (url: string, line: number, col?: number, cb?: () => void) => void } } }
+    | undefined;
+  const openResource = panels?.devtools?.panels?.openResource;
+  if (openResource) {
+    openResource(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0, () => {
+      // openResource callback — no-op, but required for some Chrome versions
+    });
+  } else {
+    // Fallback to editor
+    openInEditor(source.fileName, source.lineNumber, source.columnNumber);
+  }
 }
 
 function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEntryProps) {
