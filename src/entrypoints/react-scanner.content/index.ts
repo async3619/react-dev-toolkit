@@ -285,6 +285,7 @@ interface SourceLocation {
 interface ComponentNode {
   id: number;
   name: string;
+  hocs?: HocBadge[];
   props: Record<string, unknown>;
   children: ComponentNode[];
   source?: "first-party" | "third-party";
@@ -298,24 +299,59 @@ const elementToNodeMap = new Map<Element, { id: number; name: string }>();
 const nodeToFunctionMap = new Map<number, Function>();
 (window as unknown as Record<string, unknown>).__REACT_DEV_TOOLKIT_FN_REFS__ = nodeToFunctionMap;
 
-function getFiberName(fiber: FiberNode): string | null {
+type HocBadge = "memo" | "forwardRef" | "lazy";
+
+interface FiberNameResult {
+  name: string;
+  hocs: HocBadge[];
+}
+
+function getFiberName(fiber: FiberNode): FiberNameResult | null {
   const type = fiber.type;
   if (!type) return null;
-  if (typeof type === "string") return type;
+  if (typeof type === "string") return { name: type, hocs: [] };
   if (typeof type === "function") {
-    return (type as { displayName?: string }).displayName || type.name || "Anonymous";
+    const name = (type as { displayName?: string }).displayName || type.name || "Anonymous";
+    return { name, hocs: [] };
   }
   if (typeof type === "object") {
-    if ((type as { displayName?: string }).displayName) {
-      return (type as { displayName: string }).displayName;
+    const objType = type as {
+      displayName?: string;
+      render?: { displayName?: string; name?: string };
+      type?: { displayName?: string; name?: string; render?: { displayName?: string; name?: string } };
+      $$typeof?: symbol;
+    };
+
+    // ForwardRef: has .render
+    if (objType.render) {
+      const name = objType.displayName || objType.render.displayName || objType.render.name || "Anonymous";
+      return { name, hocs: ["forwardRef"] };
     }
-    if ((type as { render?: { displayName?: string; name?: string } }).render) {
-      const render = (type as { render: { displayName?: string; name?: string } }).render;
-      return render.displayName || render.name || "ForwardRef";
+
+    // Memo: has .type (inner component)
+    if (objType.type) {
+      const inner = objType.type;
+      const hocs: HocBadge[] = ["memo"];
+
+      // Memo wrapping ForwardRef: inner has .render
+      if (inner.render) {
+        hocs.push("forwardRef");
+        const name = objType.displayName || inner.displayName || inner.render.displayName || inner.render.name || "Anonymous";
+        return { name, hocs };
+      }
+
+      const name = objType.displayName || inner.displayName || inner.name || "Anonymous";
+      return { name, hocs };
     }
-    if ((type as { type?: { displayName?: string; name?: string } }).type) {
-      const inner = (type as { type: { displayName?: string; name?: string } }).type;
-      return `Memo(${inner.displayName || inner.name || "Anonymous"})`;
+
+    // Lazy components
+    if (objType.$$typeof && String(objType.$$typeof) === "Symbol(react.lazy)") {
+      const name = objType.displayName || "Lazy";
+      return { name, hocs: ["lazy"] };
+    }
+
+    if (objType.displayName) {
+      return { name: objType.displayName, hocs: [] };
     }
   }
   return null;
@@ -430,12 +466,12 @@ function getComponentSource(fiber: FiberNode): ComponentSourceInfo {
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
 function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
-  const name = getFiberName(fiber);
+  const result = getFiberName(fiber);
 
   // Fiber tags: 0 = FunctionComponent, 1 = ClassComponent, 11 = ForwardRef, 14 = MemoComponent, 15 = SimpleMemoComponent
   const isComponent = componentTags.has(fiber.tag);
 
-  if (isComponent && name) {
+  if (isComponent && result) {
     const id = nodeIdCounter++;
     const children: ComponentNode[] = [];
     let child = fiber.child;
@@ -448,7 +484,7 @@ function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
     const domEl = findNearestDomElement(fiber);
     if (domEl) {
       nodeToElementMap.set(id, domEl);
-      elementToNodeMap.set(domEl, { id, name });
+      elementToNodeMap.set(domEl, { id, name: result.name });
     }
 
     // Store function reference for inspect() from DevTools panel
@@ -466,7 +502,8 @@ function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
 
     out.push({
       id,
-      name,
+      name: result.name,
+      hocs: result.hocs.length > 0 ? result.hocs : undefined,
       props: serializeProps(fiber.memoizedProps || {}),
       children,
       source: classification,

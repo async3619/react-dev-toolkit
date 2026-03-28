@@ -4,9 +4,12 @@ export interface SourceLocation {
   columnNumber?: number;
 }
 
+export type HocBadge = "memo" | "forwardRef" | "lazy";
+
 export interface ComponentNode {
   id: number;
   name: string;
+  hocs?: HocBadge[];
   props: Record<string, unknown>;
   children: ComponentNode[];
   source?: "first-party" | "third-party";
