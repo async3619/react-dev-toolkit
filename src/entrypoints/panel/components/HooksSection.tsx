@@ -1,5 +1,5 @@
 import { useState, useMemo, useTransition } from "react";
-import { ChevronDown, ChevronRight, Code2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Code, Search } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
 import { SidebarSection } from "./SidebarSection";
@@ -83,10 +83,10 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
           <Tooltip content={`${hook.source!.fileName}:${hook.source!.lineNumber}`}>
             <button
               type="button"
-              className="text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className="ml-auto text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => openHookSource(hook.source!)}
             >
-              <Code2 size={14} />
+              <Code size={14} />
             </button>
           </Tooltip>
         )}
