@@ -1,6 +1,20 @@
+/**
+ * Strip bundler prefixes (webpack://, vite://, etc.), leading dot-slashes,
+ * and query strings / hash fragments from a source file path.
+ */
+export function cleanSourcePath(raw: string): string {
+  let p = raw.replace(/\\/g, "/");
+  // Remove scheme like "webpack://package-name/" or "vite:///"
+  p = p.replace(/^[\w-]+:\/\/[^/]*\//, "");
+  // Remove leading "./"
+  p = p.replace(/^\.\//, "");
+  // Remove query string and hash
+  p = p.replace(/[?#].*$/, "");
+  return p;
+}
+
 export function formatSourceLocation(fileName: string, lineNumber: number): string {
-  // Extract just the file name from the full path
-  const parts = fileName.replace(/\\/g, "/").split("/");
+  const parts = cleanSourcePath(fileName).split("/");
   const name = parts[parts.length - 1] || fileName;
   return `${name}:${lineNumber}`;
 }

@@ -207,7 +207,7 @@ function resolveComponentSourceByInvocation(fn: unknown): SourceLocation | null 
       // The control stack only contains our scanner frames, so any URL in it is ours
       const ownUrls: string[] = [];
       for (const line of controlLines) {
-        const m = line.match(/\(?(.+?):\d+:\d+\)?/);
+        const m = line.match(/\((.+):\d+:\d+\)/) || line.match(/at\s+(.+):\d+:\d+\s*$/);
         if (m) {
           const url = m[1];
           if (!ownUrls.includes(url)) ownUrls.push(url);
@@ -236,7 +236,8 @@ function resolveComponentSourceByInvocation(fn: unknown): SourceLocation | null 
           line.includes("__control__")
         ) continue;
 
-        const match = line.match(/\(?(.+?):(\d+):(\d+)\)?/);
+        // Chrome: "at Name (url:line:col)" or "at url:line:col"
+        const match = line.match(/\((.+):(\d+):(\d+)\)/) || line.match(/at\s+(.+):(\d+):(\d+)\s*$/);
         if (match) {
           result = {
             fileName: match[1],
@@ -293,6 +294,9 @@ interface ComponentNode {
 let nodeIdCounter = 0;
 const nodeToElementMap = new Map<number, Element>();
 const elementToNodeMap = new Map<Element, { id: number; name: string }>();
+// Store component function references for inspect() from DevTools panel
+const nodeToFunctionMap = new Map<number, Function>();
+(window as unknown as Record<string, unknown>).__REACT_DEV_TOOLKIT_FN_REFS__ = nodeToFunctionMap;
 
 function getFiberName(fiber: FiberNode): string | null {
   const type = fiber.type;
@@ -447,6 +451,17 @@ function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
       elementToNodeMap.set(domEl, { id, name });
     }
 
+    // Store function reference for inspect() from DevTools panel
+    const fn = typeof fiber.type === "function"
+      ? fiber.type
+      : typeof fiber.type === "object" && fiber.type !== null
+        ? (fiber.type as { render?: unknown; type?: unknown }).render
+          || (fiber.type as { render?: unknown; type?: unknown }).type
+        : null;
+    if (typeof fn === "function") {
+      nodeToFunctionMap.set(id, fn as Function);
+    }
+
     const { classification, location } = getComponentSource(fiber);
 
     out.push({
@@ -515,6 +530,7 @@ function scanTree() {
   nodeIdCounter = 0;
   nodeToElementMap.clear();
   elementToNodeMap.clear();
+  nodeToFunctionMap.clear();
   const fiberRoots = findReactRoots();
 
   if (fiberRoots.length === 0) {
@@ -748,6 +764,13 @@ window.addEventListener("message", (event) => {
     highlightElement(data.nodeId, data.nodeName);
   } else if (data?.type === "HIDE_HIGHLIGHT") {
     hideHighlight();
+  } else if (data?.type === "INSPECT_SOURCE") {
+    const fn = nodeToFunctionMap.get(data.nodeId);
+    if (fn) {
+      // Chrome's inspect() opens the function's source in the Sources panel
+      // For source-mapped files, it navigates to the original source
+      (window as unknown as { inspect?: (target: unknown) => void }).inspect?.(fn);
+    }
   } else if (data?.type === "START_INSPECT") {
     startInspecting();
   } else if (data?.type === "STOP_INSPECT") {
