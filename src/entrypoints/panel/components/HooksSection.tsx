@@ -83,10 +83,10 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
           <Tooltip content={`${hook.source!.fileName}:${hook.source!.lineNumber}`}>
             <button
               type="button"
-              className="text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 mt-0.5"
+              className="text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center"
               onClick={() => openHookSource(hook.source!)}
             >
-              <Code2 size={12} />
+              <Code2 size={14} />
             </button>
           </Tooltip>
         )}
