@@ -52,8 +52,8 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
   return (
     <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
       <div
-        className={`group flex items-center gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}${hasSource ? " cursor-pointer" : ""}`}
-        onClick={() => hasSource && openHookSource(hook.source!)}
+        className={`group flex items-center gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}${hasChildren ? " cursor-pointer" : ""}`}
+        onClick={() => hasChildren && setExpanded(!expanded)}
       >
         {hasChildren ? (
           <button
