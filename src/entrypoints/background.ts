@@ -18,7 +18,7 @@ export default defineBackground(() => {
       // Forward messages from content script back to devtools
       const listener = (
         message: unknown,
-        _sender: browser.Runtime.MessageSender,
+        _sender: Browser.runtime.MessageSender,
       ) => {
         port.postMessage(message)
       }
