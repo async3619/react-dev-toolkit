@@ -4,6 +4,7 @@ import { PropValue } from "./PropValue";
 import { RenderTree } from "./RenderTree";
 import { SidebarSection } from "./SidebarSection";
 import { SourceSection } from "./SourceSection";
+import { Tooltip } from "./Tooltip";
 
 interface PropsPanelProps {
   node: ComponentNode | null;
@@ -26,9 +27,11 @@ export function PropsPanel({ node, tree, onSelectNode, scrollRef }: PropsPanelPr
   return (
     <div>
       <div className="px-3 py-2 border-b border-gray-700">
-        <h3 className="text-sm font-semibold text-yellow-300 truncate" title={node.name}>
-          {"<"}{node.name}{" />"}
-        </h3>
+        <Tooltip content={node.name}>
+          <h3 className="text-sm font-semibold text-yellow-300 truncate">
+            {"<"}{node.name}{" />"}
+          </h3>
+        </Tooltip>
       </div>
       <SidebarSection title={`Props (${entries.length})`}>
         {entries.length === 0 ? (

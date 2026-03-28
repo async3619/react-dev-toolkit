@@ -1,5 +1,6 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, Crosshair, ListFilter, Settings } from "lucide-react";
+import { Tooltip } from "./Tooltip";
 
 interface TreeFilterProps {
   value: string
@@ -28,18 +29,19 @@ export function TreeFilter({
 }: TreeFilterProps) {
   return (
     <div className="flex items-center border-b border-gray-700 shrink-0">
-      <button
-        type="button"
-        onClick={onToggleInspect}
-        title="Click to inspect an element on the page"
-        className={`px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 ${
-          inspecting
-            ? 'text-blue-400 bg-blue-500/10'
-            : 'text-gray-500 hover:text-gray-300'
-        }`}
-      >
-        <Crosshair size={14} />
-      </button>
+      <Tooltip content="Click to inspect an element on the page">
+        <button
+          type="button"
+          onClick={onToggleInspect}
+          className={`px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 ${
+            inspecting
+              ? 'text-blue-400 bg-blue-500/10'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <Crosshair size={14} />
+        </button>
+      </Tooltip>
       <input
         type="text"
         value={value}
@@ -49,17 +51,18 @@ export function TreeFilter({
       />
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            title="Filter options"
-            className={`px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 ${
-              firstPartyOnly
-                ? "text-blue-400 bg-blue-500/10"
-                : "text-gray-500 hover:text-gray-300"
-            }`}
-          >
-            <ListFilter size={14} />
-          </button>
+          <Tooltip content="Filter options">
+            <button
+              type="button"
+              className={`px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 ${
+                firstPartyOnly
+                  ? "text-blue-400 bg-blue-500/10"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              <ListFilter size={14} />
+            </button>
+          </Tooltip>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
@@ -82,13 +85,14 @@ export function TreeFilter({
       </DropdownMenu.Root>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <button
-            type="button"
-            title="Display settings"
-            className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 text-gray-500 hover:text-gray-300"
-          >
-            <Settings size={14} />
-          </button>
+          <Tooltip content="Display settings">
+            <button
+              type="button"
+              className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 text-gray-500 hover:text-gray-300"
+            >
+              <Settings size={14} />
+            </button>
+          </Tooltip>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content

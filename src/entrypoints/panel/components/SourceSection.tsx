@@ -3,6 +3,7 @@ import type { ComponentNode } from "@/types";
 import { cleanSourcePath } from "../utils/format";
 import { openInEditor, openInSource } from "../utils/source";
 import { SidebarSection } from "./SidebarSection";
+import { Tooltip } from "./Tooltip";
 
 interface SourceSectionProps {
   node: ComponentNode;
@@ -21,9 +22,11 @@ export function SourceSection({ node }: SourceSectionProps) {
       <div className="space-y-1.5 text-xs">
         <div className="flex gap-2 min-w-0">
           <span className="text-gray-500 shrink-0">File</span>
-          <span className="text-green-400 truncate" title={displayPath}>
-            {displayPath}
-          </span>
+          <Tooltip content={displayPath} side="top" align="start">
+            <span className="text-green-400 truncate">
+              {displayPath}
+            </span>
+          </Tooltip>
         </div>
         <div className="flex gap-2">
           <span className="text-gray-500 shrink-0">Line</span>
