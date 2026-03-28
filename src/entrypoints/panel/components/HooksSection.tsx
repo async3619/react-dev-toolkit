@@ -33,7 +33,7 @@ function openHookSource(source: { fileName: string; lineNumber: number; columnNu
     .replace(/\?.*$/, "");
 
   const chromeApi = (globalThis as unknown as Record<string, unknown>).chrome as
-    | { devtools?: { inspectedWindow?: { getResources?: (cb: (resources: { url: string }[]) => void) => void }; panels?: { openResource?: (url: string, line: number, col: number) => void } } }
+    | { devtools?: { inspectedWindow?: { getResources?: (cb: (resources: { url: string }[]) => void) => void }; panels?: { openResource?: (url: string, line: number, cb?: () => void) => void } } }
     | undefined;
 
   const getResources = chromeApi?.devtools?.inspectedWindow?.getResources;
@@ -41,16 +41,17 @@ function openHookSource(source: { fileName: string; lineNumber: number; columnNu
 
   if (getResources && openResource) {
     getResources((resources) => {
-      // Find a resource URL that ends with our short path
       const match = resources.find((r) => r.url.includes(shortPath));
-      if (match) {
-        openResource(match.url, source.lineNumber - 1, source.columnNumber ?? 0);
-      } else {
-        // Try raw fileName as last resort
-        openResource(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0);
+      console.log('[RDT] openHookSource shortPath:', shortPath, 'match:', match?.url, 'total resources:', resources.length);
+      if (!match) {
+        // Log a few resource URLs for debugging
+        console.log('[RDT] sample resources:', resources.slice(0, 10).map((r) => r.url));
       }
+      const url = match?.url ?? source.fileName;
+      openResource(url, source.lineNumber - 1);
     });
   } else {
+    console.log('[RDT] no getResources/openResource API available');
     openInEditor(source.fileName, source.lineNumber, source.columnNumber);
   }
 }
