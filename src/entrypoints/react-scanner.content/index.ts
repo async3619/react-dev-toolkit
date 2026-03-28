@@ -1449,7 +1449,7 @@ function buildHookTree(
       for (let j = stack.length - commonSteps - 1; j >= 1; j--) {
         const children: HookInfo[] = [];
         const customHookName = parseHookName(stack[j - 1].functionName);
-        const srcFrame = stack[j];
+        const srcFrame = stack[j - 1];
         const levelChild: HookInfo = {
           id: null,
           name: toUsePrefix(customHookName || "Unknown"),
