@@ -1401,7 +1401,7 @@ function buildHookTree(
   let prevStack: ErrorStackParser.StackFrame[] | null = null;
   let levelChildren = rootChildren;
   const stackOfChildren: HookInfo[][] = [];
-  let nativeHookID = 0;
+  let nativeHookID = 1;
 
   for (let i = 0; i < readHookLog.length; i++) {
     const hook = readHookLog[i];
@@ -1500,7 +1500,7 @@ function guessHookType(memoizedState: unknown): string {
 function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
   const hooks: HookInfo[] = [];
   let current = fiber.memoizedState as { memoizedState: unknown; next: unknown } | null;
-  let hookId = 0;
+  let hookId = 1;
 
   while (current) {
     const hookType = guessHookType(current.memoizedState);
