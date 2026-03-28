@@ -6,5 +6,5 @@ export default function App() {
         Open DevTools to inspect React components.
       </p>
     </div>
-  );
+  )
 }
