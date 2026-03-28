@@ -61,9 +61,10 @@ export function ComponentTree({
   // Scroll selected node into view
   useEffect(() => {
     if (selectedIndex >= 0) {
-      scrollToIndex(selectedIndex)
+      const itemLeft = flat[selectedIndex].depth * 16 + 8
+      scrollToIndex(selectedIndex, itemLeft)
     }
-  }, [selectedIndex, scrollToIndex])
+  }, [selectedIndex, flat, scrollToIndex])
 
   // When an element is inspected on the page, select it in the tree
   useEffect(() => {
