@@ -34,7 +34,10 @@ function HookEntry({ hook, depth = 0 }: HookEntryProps) {
         ) : (
           <span className="w-3 shrink-0" />
         )}
-        <span className={`${nameColor} shrink-0`}>{hook.name}</span>
+        <span className={`${nameColor} shrink-0`}>
+          {hook.name}
+          {hook.id !== null && <span className="text-gray-500"> ({hook.id})</span>}
+        </span>
         {showValue && (
           <>
             <span className="text-gray-500 shrink-0">:</span>

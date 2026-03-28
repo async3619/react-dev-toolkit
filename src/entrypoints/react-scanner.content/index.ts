@@ -908,6 +908,7 @@ window.addEventListener("message", (event) => {
 // --- Hooks inspection ---
 
 interface HookInfo {
+  id: number | null;
   name: string;
   value: unknown;
   subHooks: HookInfo[];
@@ -1400,6 +1401,7 @@ function buildHookTree(
   let prevStack: ErrorStackParser.StackFrame[] | null = null;
   let levelChildren = rootChildren;
   const stackOfChildren: HookInfo[][] = [];
+  let nativeHookID = 0;
 
   for (let i = 0; i < readHookLog.length; i++) {
     const hook = readHookLog[i];
@@ -1441,6 +1443,7 @@ function buildHookTree(
         const children: HookInfo[] = [];
         const customHookName = parseHookName(stack[j - 1].functionName);
         const levelChild: HookInfo = {
+          id: null,
           name: toUsePrefix(customHookName || "Unknown"),
           value: undefined,
           subHooks: children,
@@ -1456,7 +1459,10 @@ function buildHookTree(
       ? toUsePrefix(displayName)
       : toUsePrefix(hook.primitive);
 
+    // Context and DebugValue hooks don't get an ID (not stateful)
+    const noId = hook.primitive === "Context" || hook.primitive === "Context (use)" || hook.primitive === "DebugValue";
     const leafChild: HookInfo = {
+      id: noId ? null : nativeHookID++,
       name,
       value: serializeValue(hook.value, 0),
       subHooks: [],
@@ -1494,6 +1500,7 @@ function guessHookType(memoizedState: unknown): string {
 function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
   const hooks: HookInfo[] = [];
   let current = fiber.memoizedState as { memoizedState: unknown; next: unknown } | null;
+  let hookId = 0;
 
   while (current) {
     const hookType = guessHookType(current.memoizedState);
@@ -1504,6 +1511,7 @@ function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
     }
 
     hooks.push({
+      id: hookId++,
       name: hookType,
       value: serializeValue(value, 0),
       subHooks: [],

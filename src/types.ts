@@ -17,6 +17,7 @@ export interface ComponentNode {
 }
 
 export interface HookInfo {
+  id: number | null;
   name: string;
   value: unknown;
   subHooks: HookInfo[];
