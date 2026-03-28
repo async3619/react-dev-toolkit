@@ -1,5 +1,11 @@
 import type { ComponentNode } from '@/types'
 
+export interface FlatNode {
+  node: ComponentNode
+  depth: number
+  parent: ComponentNode | null
+}
+
 export function filterTree(
   nodes: ComponentNode[],
   query: string,
@@ -27,7 +33,6 @@ export function filterFirstPartyTree(nodes: ComponentNode[]): ComponentNode[] {
       if (node.source === 'first-party') {
         result.push({ ...node, children: filteredChildren })
       } else {
-        // Skip non-first-party nodes but keep their first-party descendants
         result.push(...filteredChildren)
       }
     }
@@ -48,21 +53,63 @@ export function collectAllIds(nodes: ComponentNode[]): Set<number> {
   return ids
 }
 
+export function collectIdsToDepth(
+  nodes: ComponentNode[],
+  maxDepth: number,
+): Set<number> {
+  const ids = new Set<number>()
+  const walk = (list: ComponentNode[], depth: number) => {
+    if (depth >= maxDepth) return
+    for (const node of list) {
+      ids.add(node.id)
+      walk(node.children, depth + 1)
+    }
+  }
+  walk(nodes, 0)
+  return ids
+}
+
+const CHAR_WIDTH = 8
+const INDENT_PER_DEPTH = 16
+const BASE_PADDING = 8
+const CHEVRON_WIDTH = 20
+const RIGHT_PADDING = 8
+
+export function estimateRowWidth(node: ComponentNode, depth: number): number {
+  const indent = depth * INDENT_PER_DEPTH + BASE_PADDING
+  const propKeys = Object.keys(node.props).slice(0, 3)
+  // "<" + name + props + ">" or " />"
+  const textLen =
+    1 + node.name.length + (propKeys.length > 0 ? 1 + propKeys.join(' ').length : 0) + (node.children.length > 0 ? 1 : 3)
+  return indent + CHEVRON_WIDTH + textLen * CHAR_WIDTH + RIGHT_PADDING
+}
+
+export function estimateMaxWidth(flat: FlatNode[]): number {
+  let max = 0
+  for (const { node, depth } of flat) {
+    const w = estimateRowWidth(node, depth)
+    if (w > max) max = w
+  }
+  return max
+}
+
 export function buildFlatList(
   nodes: ComponentNode[],
   expandedIds: Set<number>,
-): { flat: ComponentNode[]; parentMap: Map<number, ComponentNode | null> } {
-  const flat: ComponentNode[] = []
-  const parentMap = new Map<number, ComponentNode | null>()
-  const walk = (list: ComponentNode[], parent: ComponentNode | null) => {
+): FlatNode[] {
+  const flat: FlatNode[] = []
+  const walk = (
+    list: ComponentNode[],
+    depth: number,
+    parent: ComponentNode | null,
+  ) => {
     for (const node of list) {
-      flat.push(node)
-      parentMap.set(node.id, parent)
+      flat.push({ node, depth, parent })
       if (expandedIds.has(node.id) && node.children.length > 0) {
-        walk(node.children, node)
+        walk(node.children, depth + 1, node)
       }
     }
   }
-  walk(nodes, null)
-  return { flat, parentMap }
+  walk(nodes, 0, null)
+  return flat
 }

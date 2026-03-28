@@ -162,24 +162,36 @@ function findNearestDomElement(fiber: FiberNode): Element | null {
   return null;
 }
 
+const MAX_PROP_DEPTH = 3;
+const MAX_PROP_KEYS = 20;
+
+function serializeValue(val: unknown, depth: number): unknown {
+  if (val === null || val === undefined) return val;
+  if (typeof val === "symbol") return val.toString();
+  if (typeof val === "function") return `ƒ ${val.name || "anonymous"}()`;
+  if (typeof val !== "object") return val;
+  if (depth >= MAX_PROP_DEPTH) return "[...]";
+
+  if (Array.isArray(val)) {
+    return val.slice(0, MAX_PROP_KEYS).map((v) => serializeValue(v, depth + 1));
+  }
+
+  const result: Record<string, unknown> = {};
+  const keys = Object.keys(val as Record<string, unknown>);
+  for (let i = 0; i < Math.min(keys.length, MAX_PROP_KEYS); i++) {
+    result[keys[i]] = serializeValue((val as Record<string, unknown>)[keys[i]], depth + 1);
+  }
+  if (keys.length > MAX_PROP_KEYS) {
+    result["..."] = `${keys.length - MAX_PROP_KEYS} more`;
+  }
+  return result;
+}
+
 function serializeProps(props: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(props)) {
     if (key === "children") continue;
-    const val = props[key];
-    if (val === null || val === undefined) {
-      result[key] = val;
-    } else if (typeof val === "function") {
-      result[key] = `ƒ ${val.name || "anonymous"}()`;
-    } else if (typeof val === "object") {
-      try {
-        result[key] = JSON.parse(JSON.stringify(val));
-      } catch {
-        result[key] = "[Object]";
-      }
-    } else {
-      result[key] = val;
-    }
+    result[key] = serializeValue(props[key], 0);
   }
   return result;
 }
@@ -209,19 +221,20 @@ function getComponentSource(fiber: FiberNode): "first-party" | "third-party" | u
   return undefined;
 }
 
-function walkFiber(fiber: FiberNode): ComponentNode[] {
-  const nodes: ComponentNode[] = [];
+const componentTags = new Set([0, 1, 11, 14, 15]);
+
+function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
   const name = getFiberName(fiber);
 
   // Fiber tags: 0 = FunctionComponent, 1 = ClassComponent, 11 = ForwardRef, 14 = MemoComponent, 15 = SimpleMemoComponent
-  const isComponent = [0, 1, 11, 14, 15].includes(fiber.tag);
+  const isComponent = componentTags.has(fiber.tag);
 
   if (isComponent && name) {
     const id = nodeIdCounter++;
     const children: ComponentNode[] = [];
     let child = fiber.child;
     while (child) {
-      children.push(...walkFiber(child));
+      walkFiber(child, children);
       child = child.sibling;
     }
 
@@ -234,7 +247,7 @@ function walkFiber(fiber: FiberNode): ComponentNode[] {
 
     const source = getComponentSource(fiber);
 
-    nodes.push({
+    out.push({
       id,
       name,
       props: serializeProps(fiber.memoizedProps || {}),
@@ -244,12 +257,10 @@ function walkFiber(fiber: FiberNode): ComponentNode[] {
   } else {
     let child = fiber.child;
     while (child) {
-      nodes.push(...walkFiber(child));
+      walkFiber(child, out);
       child = child.sibling;
     }
   }
-
-  return nodes;
 }
 
 function findReactRoots(): FiberNode[] {
@@ -310,7 +321,7 @@ function scanTree() {
 
   const tree: ComponentNode[] = [];
   for (const root of fiberRoots) {
-    tree.push(...walkFiber(root));
+    walkFiber(root, tree);
   }
 
   window.postMessage({ type: "REACT_TREE_RESULT", tree }, "*");
@@ -467,10 +478,24 @@ function hookIntoReact() {
   };
 }
 
-async function startWatching() {
-  await loadSourceMaps();
+let watching = false;
+
+function startWatching() {
+  if (watching) {
+    // Already watching — just re-scan to respond to a retry
+    scanTree();
+    return;
+  }
+  watching = true;
+
+  // Scan immediately without waiting for source maps
   scanTree();
   hookIntoReact();
+
+  // Load source maps in background, then re-scan with source classification
+  loadSourceMaps().then(() => {
+    scanTree();
+  });
 
   if (observer) return;
   observer = new MutationObserver((mutations) => {
@@ -494,6 +519,7 @@ async function startWatching() {
 }
 
 function stopWatching() {
+  watching = false;
   if (observer) {
     observer.disconnect();
     observer = null;

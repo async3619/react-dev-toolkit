@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentNode } from '@/types'
 import { useTreeNavigation } from '../hooks/useTreeNavigation'
+import { useVirtualScroll } from '../hooks/useVirtualScroll'
+import { estimateMaxWidth } from '../utils/tree'
 import { PropsPanel } from './PropsPanel'
 import { ResizablePanel } from './ResizablePanel'
 import { TreeFilter } from './TreeFilter'
@@ -34,8 +36,10 @@ export function ComponentTree({
     filter,
     setFilter,
     filteredTree,
+    flat,
     expandedIds,
     selectedId,
+    selectedIndex,
     selectedNode,
     select,
     selectById,
@@ -43,6 +47,22 @@ export function ComponentTree({
     collapseWithChildren,
     handleKeyDown,
   } = useTreeNavigation(tree, firstPartyOnly)
+
+  const {
+    startIndex,
+    endIndex,
+    totalHeight,
+    offsetY,
+    onScroll,
+    scrollToIndex,
+  } = useVirtualScroll(containerRef, flat.length)
+
+  // Scroll selected node into view
+  useEffect(() => {
+    if (selectedIndex >= 0) {
+      scrollToIndex(selectedIndex)
+    }
+  }, [selectedIndex, scrollToIndex])
 
   // When an element is inspected on the page, select it in the tree
   useEffect(() => {
@@ -69,6 +89,9 @@ export function ComponentTree({
     }
   }, [inspecting, onStartInspect, onStopInspect])
 
+  const contentWidth = useMemo(() => estimateMaxWidth(flat), [flat])
+  const visibleItems = flat.slice(startIndex, endIndex)
+
   const treePanel = (
     <div className="relative flex flex-col h-full">
       <TreeFilter
@@ -84,27 +107,41 @@ export function ComponentTree({
         className="flex-1 overflow-auto focus:outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        onScroll={onScroll}
       >
         {filteredTree.length === 0 && filter && (
           <div className="p-4 text-gray-500 text-sm">
             No matching components.
           </div>
         )}
-        {filteredTree.map((node) => (
-          <TreeNode
-            key={node.id}
-            node={node}
-            depth={0}
-            filter={filter}
-            expandedIds={expandedIds}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onToggle={toggleExpand}
-            onCollapse={(id) => collapseWithChildren(id, filteredTree)}
-            onHover={onHighlight}
-            onHoverEnd={onHideHighlight}
-          />
-        ))}
+        {filteredTree.length > 0 && (
+          <div style={{ height: `${totalHeight}px`, position: 'relative', minWidth: `${contentWidth}px` }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: `${offsetY}px`,
+                left: 0,
+                right: 0,
+              }}
+            >
+              {visibleItems.map((item) => (
+                <TreeNode
+                  key={item.node.id}
+                  node={item.node}
+                  depth={item.depth}
+                  filter={filter}
+                  expanded={expandedIds.has(item.node.id)}
+                  isSelected={selectedId === item.node.id}
+                  onSelect={handleSelect}
+                  onToggle={toggleExpand}
+                  onCollapse={(id) => collapseWithChildren(id, filteredTree)}
+                  onHover={onHighlight}
+                  onHoverEnd={onHideHighlight}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

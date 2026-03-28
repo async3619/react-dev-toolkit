@@ -8,8 +8,9 @@ export default defineBackground(() => {
     if (!tabId) return
 
     // Forward messages from devtools to the inspected tab's content script
+    // Retry on failure since the content script may not be injected yet
     port.onMessage.addListener((message) => {
-      browser.tabs.sendMessage(tabId, message)
+      sendWithRetry(tabId, message, 5, 500)
     })
 
     // Forward messages from the inspected tab's content script back to devtools
@@ -28,3 +29,21 @@ export default defineBackground(() => {
     })
   })
 })
+
+async function sendWithRetry(
+  tabId: number,
+  message: unknown,
+  retries: number,
+  delayMs: number,
+): Promise<void> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      await browser.tabs.sendMessage(tabId, message)
+      return
+    } catch {
+      if (i < retries) {
+        await new Promise((r) => setTimeout(r, delayMs))
+      }
+    }
+  }
+}
