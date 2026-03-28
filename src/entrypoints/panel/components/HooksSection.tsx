@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
 import { SidebarSection } from "./SidebarSection";
+import { Tooltip } from "./Tooltip";
 
 interface HookEntryProps {
   hook: HookInfo;
@@ -36,7 +37,11 @@ function HookEntry({ hook, depth = 0 }: HookEntryProps) {
         )}
         <span className={`${nameColor} shrink-0`}>
           {hook.name}
-          {hook.id !== null && <span className="text-gray-500"> ({hook.id})</span>}
+          {hook.id !== null && (
+            <Tooltip content={`Hook ID: ${hook.id}`}>
+              <span className="text-gray-500"> ({hook.id})</span>
+            </Tooltip>
+          )}
         </span>
         {showValue && (
           <>
