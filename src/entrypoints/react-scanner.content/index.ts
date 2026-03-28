@@ -116,6 +116,56 @@ function resolveSourceFromMap(
   return empty;
 }
 
+/**
+ * Resolve a bundled file location to original source via source maps.
+ * Searches each loaded script's source map for a source file matching the given path,
+ * then uses generatedPositionFor + originalPositionFor to map the location.
+ */
+function resolveSourceMapLocation(
+  fileName: string,
+  lineNumber: number,
+  columnNumber?: number,
+): { fileName: string; lineNumber: number; columnNumber?: number } | null {
+  // Extract short path from webpack-internal or similar URLs
+  const shortPath = fileName
+    .replace(/^webpack-internal:\/\/\//, "")
+    .replace(/^webpack:\/\/[^/]*\//, "")
+    .replace(/^\.\//, "")
+    .replace(/\?.*$/, "");
+
+  for (const [, entry] of scriptEntries) {
+    if (!entry.consumer) continue;
+    const sources = (entry.consumer as unknown as { sources: string[] }).sources;
+    if (!sources) continue;
+
+    // Find a source that matches our file path
+    const matchedSource = sources.find((s: string) => {
+      const cleaned = s.replace(/^\.\//, "").replace(/^webpack:\/\/[^/]*\//, "");
+      return cleaned === shortPath || cleaned.endsWith(shortPath) || shortPath.endsWith(cleaned);
+    });
+
+    if (!matchedSource) continue;
+
+    // Use originalPositionFor with the matched source
+    // For webpack eval-source-map, the line numbers in stack traces are already
+    // relative to the module, so we can try direct lookup
+    const pos = entry.consumer.originalPositionFor({
+      line: lineNumber,
+      column: columnNumber ?? 0,
+    });
+
+    if (pos.source && pos.line != null) {
+      return {
+        fileName: pos.source,
+        lineNumber: pos.line,
+        columnNumber: pos.column ?? undefined,
+      };
+    }
+  }
+
+  return null;
+}
+
 // --- Component source location via stack trace (React DevTools technique) ---
 
 const sourceLocationCache = new WeakMap<object, SourceLocation | null>();
@@ -1400,6 +1450,19 @@ function processDebugValues(
   }
 }
 
+function frameToSource(
+  frame: ErrorStackParser.StackFrame | null | undefined,
+): HookSource | null {
+  if (!frame?.fileName) return null;
+  const raw = {
+    fileName: frame.fileName,
+    lineNumber: frame.lineNumber ?? 0,
+    columnNumber: frame.columnNumber,
+  };
+  // Try to resolve through source maps for accurate original location
+  return resolveSourceMapLocation(raw.fileName, raw.lineNumber, raw.columnNumber) ?? raw;
+}
+
 function buildHookTree(
   readHookLog: HookLogEntry[],
   rootStack: ErrorStackParser.StackFrame[],
@@ -1455,11 +1518,7 @@ function buildHookTree(
           name: toUsePrefix(customHookName || "Unknown"),
           value: undefined,
           subHooks: children,
-          source: srcFrame?.fileName ? {
-            fileName: srcFrame.fileName,
-            lineNumber: srcFrame.lineNumber ?? 0,
-            columnNumber: srcFrame.columnNumber,
-          } : null,
+          source: frameToSource(srcFrame),
         };
         levelChildren.push(levelChild);
         stackOfChildren.push(levelChildren);
@@ -1480,11 +1539,7 @@ function buildHookTree(
       name,
       value: serializeValue(hook.value, 0),
       subHooks: [],
-      source: leafSource?.fileName ? {
-        fileName: leafSource.fileName,
-        lineNumber: leafSource.lineNumber ?? 0,
-        columnNumber: leafSource.columnNumber,
-      } : null,
+      source: frameToSource(leafSource),
     };
     levelChildren.push(leafChild);
   }
