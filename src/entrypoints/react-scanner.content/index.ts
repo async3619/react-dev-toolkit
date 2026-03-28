@@ -26,7 +26,7 @@ function getFiberName(fiber: FiberNode): string | null {
   if (!type) return null;
   if (typeof type === "string") return type;
   if (typeof type === "function") {
-    return type.displayName || type.name || "Anonymous";
+    return (type as { displayName?: string }).displayName || type.name || "Anonymous";
   }
   if (typeof type === "object") {
     if ((type as { displayName?: string }).displayName) {

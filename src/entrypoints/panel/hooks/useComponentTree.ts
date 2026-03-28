@@ -11,7 +11,7 @@ export function useComponentTree() {
   const [state, setState] = useState<TreeState>({ status: "idle" });
   const [inspectedNodeId, setInspectedNodeId] = useState<number | null>(null);
   const [inspecting, setInspecting] = useState(false);
-  const portRef = useRef<chrome.runtime.Port | null>(null);
+  const portRef = useRef<ReturnType<typeof browser.runtime.connect> | null>(null);
 
   useEffect(() => {
     const tabId = browser.devtools.inspectedWindow.tabId;
