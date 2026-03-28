@@ -15,6 +15,8 @@ React Dev Toolkit is a replacement for React DevTools, aiming to provide a riche
 
 All code, documentation, comments, and commit messages in this repository must be written in English.
 
+When collaborating with AI agents, the language is not restricted — agents should respond in the same language the user used to ask their question.
+
 ### Issues
 
 - Write issue titles in plain, natural language.
@@ -22,7 +24,7 @@ All code, documentation, comments, and commit messages in this repository must b
 
 ### Pull Requests
 
-- All PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/) standard (e.g. `feat: add component tree view`, `fix: resolve state sync issue`).
+- All PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/) standard with a scope that indicates the affected domain (e.g. `feat(tree): add component tree view`, `fix(state): resolve state sync issue`).
 - PRs must target the `dev` branch by default. Only target `main` when releasing a stable production version.
 
 ### Code Organization
