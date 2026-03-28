@@ -8,8 +8,63 @@ interface PropValueProps {
   depth?: number;
 }
 
+interface SerializedReactElement {
+  __reactElement: true;
+  name: string;
+  key?: string;
+  props?: Record<string, unknown>;
+}
+
+function isSerializedReactElement(val: unknown): val is SerializedReactElement {
+  return typeof val === "object" && val !== null && (val as Record<string, unknown>).__reactElement === true;
+}
+
+function ReactElementValue({ value, depth = 0 }: { value: SerializedReactElement; depth?: number }) {
+  const hasDetails = value.key != null || (value.props && Object.keys(value.props).length > 0);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!hasDetails) {
+    return <span className="text-yellow-400">{`<${value.name} />`}</span>;
+  }
+
+  return (
+    <span>
+      <button
+        type="button"
+        className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown size={12} className="inline" /> : <ChevronRight size={12} className="inline" />}{" "}
+        {!expanded && <span className="text-yellow-400">{`<${value.name} />`}</span>}
+      </button>
+      {expanded && (
+        <div style={{ paddingLeft: "12px" }}>
+          <span className="text-yellow-400">{`<${value.name}`}</span>
+          {value.key != null && (
+            <div className="flex gap-2" style={{ paddingLeft: "8px" }}>
+              <span className="text-purple-400 shrink-0">key:</span>
+              <PropValue value={value.key} depth={depth + 1} />
+            </div>
+          )}
+          {value.props && Object.entries(value.props).map(([key, val]) => (
+            <div key={key} className="flex gap-2" style={{ paddingLeft: "8px" }}>
+              <span className="text-purple-400 shrink-0">{key}:</span>
+              <PropValue value={val} depth={depth + 1} />
+            </div>
+          ))}
+          <span className="text-yellow-400">{"/>"}</span>
+        </div>
+      )}
+    </span>
+  );
+}
+
 export function PropValue({ value, depth = 0 }: PropValueProps) {
   const [expanded, setExpanded] = useState(false);
+
+  if (isSerializedReactElement(value)) {
+    return <ReactElementValue value={value} depth={depth} />;
+  }
 
   if (value === null || value === undefined || typeof value !== "object") {
     const formatted = formatPrimitive(value);
