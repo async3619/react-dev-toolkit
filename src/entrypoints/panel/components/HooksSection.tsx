@@ -4,6 +4,7 @@ import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
 import { SidebarSection } from "./SidebarSection";
 import { Tooltip } from "./Tooltip";
+import { openInEditor } from "../utils/source";
 
 interface HookEntryProps {
   hook: HookInfo;
@@ -24,16 +25,7 @@ function hookMatches(hook: HookInfo, filter: string): boolean {
 }
 
 function openHookSource(source: { fileName: string; lineNumber: number; columnNumber?: number }) {
-  // Chrome DevTools API to open a resource in the Sources panel
-  // lineNumber is 0-based in this API
-  browser.devtools.inspectedWindow.eval(
-    `inspect(new Function("/* ${source.fileName}:${source.lineNumber} */"))`,
-  );
-  // Use openResource which handles source maps
-  const panels = (globalThis as unknown as Record<string, unknown>).chrome as
-    | { devtools?: { panels?: { openResource?: (url: string, line: number, col: number) => void } } }
-    | undefined;
-  panels?.devtools?.panels?.openResource?.(source.fileName, source.lineNumber - 1, source.columnNumber ?? 0);
+  openInEditor(source.fileName, source.lineNumber, source.columnNumber);
 }
 
 function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEntryProps) {
