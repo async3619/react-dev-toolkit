@@ -4,6 +4,11 @@
 
 React Dev Toolkit is a replacement for React DevTools, aiming to provide a richer and more powerful React debugging experience.
 
+## Branching Strategy
+
+- `dev` — canary branch containing code that is ready for deployment but not yet released. All PRs should target `dev` unless the change is a production release.
+- `main` — production branch where official stable versions are released from.
+
 ## Guidelines
 
 ### Language
@@ -18,6 +23,7 @@ All code, documentation, comments, and commit messages in this repository must b
 ### Pull Requests
 
 - All PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/) standard (e.g. `feat: add component tree view`, `fix: resolve state sync issue`).
+- PRs must target the `dev` branch by default. Only target `main` when releasing a stable production version.
 
 ### Code Organization
 
