@@ -9,7 +9,7 @@ interface VirtualScrollResult {
   totalHeight: number
   offsetY: number
   onScroll: () => void
-  scrollToIndex: (index: number) => void
+  scrollToIndex: (index: number, itemLeft?: number) => void
 }
 
 export function useVirtualScroll(
@@ -51,7 +51,7 @@ export function useVirtualScroll(
   const offsetY = startIndex * ROW_HEIGHT
 
   const scrollToIndex = useCallback(
-    (index: number) => {
+    (index: number, itemLeft?: number) => {
       const el = containerRef.current
       if (!el) return
 
@@ -62,6 +62,14 @@ export function useVirtualScroll(
         el.scrollTop = itemTop
       } else if (itemBottom > el.scrollTop + el.clientHeight) {
         el.scrollTop = itemBottom - el.clientHeight
+      }
+
+      if (itemLeft !== undefined) {
+        if (itemLeft < el.scrollLeft) {
+          el.scrollLeft = itemLeft
+        } else if (itemLeft > el.scrollLeft + el.clientWidth) {
+          el.scrollLeft = itemLeft - el.clientWidth / 2
+        }
       }
     },
     [containerRef],
