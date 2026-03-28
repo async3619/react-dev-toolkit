@@ -63,12 +63,14 @@ export function ComponentTree({
     scrollToIndex,
   } = useVirtualScroll(viewportRef, flat.length)
 
-  // Scroll selected node into view
+  // Scroll selected node into view only when selection changes
+  const prevSelectedIndexRef = useRef(-1)
   useEffect(() => {
-    if (selectedIndex >= 0) {
+    if (selectedIndex >= 0 && selectedIndex !== prevSelectedIndexRef.current) {
       const itemLeft = flat[selectedIndex].depth * 16 + 8
       scrollToIndex(selectedIndex, itemLeft)
     }
+    prevSelectedIndexRef.current = selectedIndex
   }, [selectedIndex, flat, scrollToIndex])
 
   // When an element is inspected on the page, select it in the tree
