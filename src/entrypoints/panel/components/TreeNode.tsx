@@ -65,6 +65,18 @@ export const TreeNode = memo(function TreeNode({
       <span className="text-yellow-300">
         {highlightName(node.name, filter)}
       </span>
+      {node.hocs && node.hocs.length > 0 && (
+        <span className="ml-1 flex items-center gap-0.5 shrink-0">
+          {node.hocs.map((hoc) => (
+            <span
+              key={hoc}
+              className="text-[10px] leading-none px-1 py-0.5 rounded bg-gray-700 text-gray-300"
+            >
+              {hoc}
+            </span>
+          ))}
+        </span>
+      )}
       {Object.keys(node.props).length > 0 && (
         <span className="text-gray-500 ml-1 truncate">
           {Object.keys(node.props)
