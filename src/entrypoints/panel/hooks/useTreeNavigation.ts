@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentNode } from '@/types'
 import {
+  type FlatNode,
   buildFlatList,
   collectAllIds,
+  collectIdsToDepth,
   filterFirstPartyTree,
   filterTree,
 } from '../utils/tree'
@@ -13,7 +15,7 @@ export function useTreeNavigation(
 ) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() =>
-    collectAllIds(tree),
+    collectIdsToDepth(tree, 1),
   )
   const [filter, setFilter] = useState('')
 
@@ -46,13 +48,18 @@ export function useTreeNavigation(
     })
   }, [tree])
 
-  const { flat } = useMemo(
+  const flat: FlatNode[] = useMemo(
     () => buildFlatList(filteredTree, expandedIds),
     [filteredTree, expandedIds],
   )
 
   const selectedNode = useMemo(
-    () => flat.find((n) => n.id === selectedId) ?? null,
+    () => flat.find((n) => n.node.id === selectedId)?.node ?? null,
+    [flat, selectedId],
+  )
+
+  const selectedIndex = useMemo(
+    () => (selectedId !== null ? flat.findIndex((n) => n.node.id === selectedId) : -1),
     [flat, selectedId],
   )
 
@@ -129,10 +136,10 @@ export function useTreeNavigation(
     (e: React.KeyboardEvent) => {
       if (selectedId === null) return
 
-      const idx = flat.findIndex((n) => n.id === selectedId)
+      const idx = flat.findIndex((n) => n.node.id === selectedId)
       if (idx === -1) return
 
-      const current = flat[idx]
+      const current = flat[idx].node
       const isExpanded = expandedIds.has(current.id)
       const hasChildren = current.children.length > 0
 
@@ -142,7 +149,7 @@ export function useTreeNavigation(
           if (hasChildren && !isExpanded) {
             toggleExpand(current.id)
           } else if (idx + 1 < flat.length) {
-            setSelectedId(flat[idx + 1].id)
+            setSelectedId(flat[idx + 1].node.id)
           }
           break
         }
@@ -151,21 +158,21 @@ export function useTreeNavigation(
           if (hasChildren && isExpanded) {
             collapseWithChildren(current.id, filteredTree)
           } else if (idx - 1 >= 0) {
-            setSelectedId(flat[idx - 1].id)
+            setSelectedId(flat[idx - 1].node.id)
           }
           break
         }
         case 'ArrowDown': {
           e.preventDefault()
           if (idx + 1 < flat.length) {
-            setSelectedId(flat[idx + 1].id)
+            setSelectedId(flat[idx + 1].node.id)
           }
           break
         }
         case 'ArrowUp': {
           e.preventDefault()
           if (idx - 1 >= 0) {
-            setSelectedId(flat[idx - 1].id)
+            setSelectedId(flat[idx - 1].node.id)
           }
           break
         }
@@ -185,8 +192,10 @@ export function useTreeNavigation(
     filter,
     setFilter,
     filteredTree,
+    flat,
     expandedIds,
     selectedId,
+    selectedIndex,
     selectedNode,
     select,
     selectById,
