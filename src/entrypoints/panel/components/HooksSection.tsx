@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
 import { SidebarSection } from "./SidebarSection";
@@ -8,15 +8,25 @@ import { Tooltip } from "./Tooltip";
 interface HookEntryProps {
   hook: HookInfo;
   depth?: number;
+  forceExpand?: boolean;
+  filter?: string;
 }
 
 function isCustomHook(hook: HookInfo): boolean {
   return hook.subHooks.length > 0;
 }
 
-function HookEntry({ hook, depth = 0 }: HookEntryProps) {
+function hookMatches(hook: HookInfo, filter: string): boolean {
+  const lower = filter.toLowerCase();
+  if (hook.name.toLowerCase().includes(lower)) return true;
+  if (hook.id !== null && String(hook.id) === filter) return true;
+  return hook.subHooks.some((sub) => hookMatches(sub, filter));
+}
+
+function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEntryProps) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = hook.subHooks.length > 0;
+  const isOpen = forceExpand || expanded;
   const custom = isCustomHook(hook);
   const nameColor = custom ? "text-yellow-300" : "text-blue-400";
   const showValue = hook.value !== undefined;
@@ -30,7 +40,7 @@ function HookEntry({ hook, depth = 0 }: HookEntryProps) {
             className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none shrink-0 mt-0.5"
             onClick={() => setExpanded(!expanded)}
           >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </button>
         ) : (
           <span className="w-3 shrink-0" />
@@ -52,10 +62,10 @@ function HookEntry({ hook, depth = 0 }: HookEntryProps) {
           </>
         )}
       </div>
-      {expanded && hasChildren && (
+      {isOpen && hasChildren && (
         <div>
           {hook.subHooks.map((sub, i) => (
-            <HookEntry key={i} hook={sub} depth={depth + 1} />
+            <HookEntry key={i} hook={sub} depth={depth + 1} forceExpand={forceExpand} filter={filter} />
           ))}
         </div>
       )}
@@ -68,12 +78,33 @@ interface HooksSectionProps {
 }
 
 export function HooksSection({ hooks }: HooksSectionProps) {
+  const [filter, setFilter] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!filter) return hooks;
+    return hooks.filter((hook) => hookMatches(hook, filter));
+  }, [hooks, filter]);
+
   return (
     <SidebarSection title={`Hooks (${hooks.length})`}>
+      <div className="mb-2 relative">
+        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter by name or ID..."
+          className="w-full bg-gray-800 border border-gray-700 rounded text-xs text-gray-300 py-1 pl-6 pr-2 focus:outline-none focus:border-blue-500 placeholder-gray-600"
+        />
+      </div>
       <div className="space-y-0.5">
-        {hooks.map((hook, i) => (
-          <HookEntry key={i} hook={hook} />
-        ))}
+        {filtered.length === 0 && filter ? (
+          <p className="text-gray-500 text-xs">No matching hooks.</p>
+        ) : (
+          filtered.map((hook, i) => (
+            <HookEntry key={i} hook={hook} forceExpand={!!filter} filter={filter} />
+          ))
+        )}
       </div>
     </SidebarSection>
   );
