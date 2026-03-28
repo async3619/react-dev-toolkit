@@ -140,8 +140,12 @@ export function ComponentTree({
                 item.closingTag ? (
                   <ClosingTagNode
                     key={`${item.node.id}-close`}
-                    name={item.node.name}
+                    node={item.node}
                     depth={item.depth}
+                    isSelected={selectedId === item.node.id}
+                    onSelect={handleSelect}
+                    onHover={onHighlight}
+                    onHoverEnd={onHideHighlight}
                   />
                 ) : (
                   <TreeNode
