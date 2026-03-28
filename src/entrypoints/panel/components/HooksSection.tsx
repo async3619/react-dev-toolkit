@@ -64,7 +64,7 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
       </div>
       {isOpen && hasChildren && (
         <div>
-          {hook.subHooks.map((sub, i) => (
+          {(filter ? hook.subHooks.filter((sub) => hookMatches(sub, filter)) : hook.subHooks).map((sub, i) => (
             <HookEntry key={i} hook={sub} depth={depth + 1} forceExpand={forceExpand} filter={filter} />
           ))}
         </div>
