@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, type ReactNode, type RefObject, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode, type RefObject, type MutableRefObject, type MouseEvent as ReactMouseEvent } from "react";
+import { useOverlayScrollbar } from "../hooks/useOverlayScrollbar";
 
 interface ResizablePanelProps {
   left: ReactNode;
@@ -11,7 +12,16 @@ interface ResizablePanelProps {
 export function ResizablePanel({ left, right, rightScrollRef, defaultWidth = 288, minWidth = 150 }: ResizablePanelProps) {
   const [width, setWidth] = useState(defaultWidth);
   const containerRef = useRef<HTMLDivElement>(null);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useOverlayScrollbar(rightPanelRef);
   const dragging = useRef(false);
+
+  // Sync external scrollRef to the overlay scrollbar viewport
+  useEffect(() => {
+    if (rightScrollRef) {
+      (rightScrollRef as MutableRefObject<HTMLDivElement | null>).current = viewportRef.current;
+    }
+  });
 
   const handleDragStart = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
@@ -40,7 +50,7 @@ export function ResizablePanel({ left, right, rightScrollRef, defaultWidth = 288
         className="w-1 shrink-0 cursor-col-resize bg-gray-700 hover:bg-blue-500 active:bg-blue-500 transition-colors"
         onMouseDown={handleDragStart}
       />
-      <div ref={rightScrollRef} className="overflow-auto shrink-0" style={{ width: `${width}px` }}>
+      <div ref={rightPanelRef} className="overflow-hidden shrink-0" style={{ width: `${width}px` }}>
         {right}
       </div>
     </div>

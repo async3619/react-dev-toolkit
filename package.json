@@ -35,6 +35,8 @@
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@tanstack/react-virtual": "^3.13.23",
     "lucide-react": "^1.7.0",
+    "overlayscrollbars": "^2.14.0",
+    "overlayscrollbars-react": "^0.5.6",
     "source-map-js": "^1.2.1"
   }
 }

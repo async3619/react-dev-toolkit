@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/* Overlay scrollbar theme */
+.os-scrollbar {
+  --os-size: 8px;
+  --os-padding-perpendicular: 2px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 4px;
+  --os-handle-border-radius: 4px;
+  --os-handle-bg: oklch(44.6% 0.03 256.802);
+  --os-handle-bg-hover: oklch(55.1% 0.027 264.364);
+  --os-handle-bg-active: oklch(70.7% 0.022 261.325);
+}
