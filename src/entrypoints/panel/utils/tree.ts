@@ -4,6 +4,7 @@ export interface FlatNode {
   node: ComponentNode
   depth: number
   parent: ComponentNode | null
+  closingTag?: boolean
 }
 
 export function filterTree(
@@ -75,19 +76,34 @@ const BASE_PADDING = 8
 const CHEVRON_WIDTH = 20
 const RIGHT_PADDING = 8
 
-export function estimateRowWidth(node: ComponentNode, depth: number): number {
+export function estimateRowWidth(
+  node: ComponentNode,
+  depth: number,
+  closingTag?: boolean,
+  expanded?: boolean,
+): number {
   const indent = depth * INDENT_PER_DEPTH + BASE_PADDING
+  if (closingTag) {
+    // "</" + name + ">"
+    const textLen = 2 + node.name.length + 1
+    return indent + CHEVRON_WIDTH + textLen * CHAR_WIDTH + RIGHT_PADDING
+  }
   const propKeys = Object.keys(node.props).slice(0, 3)
+  const hasChildren = node.children.length > 0
   // "<" + name + props + ">" or " />"
-  const textLen =
-    1 + node.name.length + (propKeys.length > 0 ? 1 + propKeys.join(' ').length : 0) + (node.children.length > 0 ? 1 : 3)
+  let textLen =
+    1 + node.name.length + (propKeys.length > 0 ? 1 + propKeys.join(' ').length : 0) + (hasChildren ? 1 : 3)
+  // collapsed nodes with children show inline: >…</Name>
+  if (hasChildren && !expanded) {
+    textLen += 1 + 2 + node.name.length + 1 // "…" + "</" + name + ">"
+  }
   return indent + CHEVRON_WIDTH + textLen * CHAR_WIDTH + RIGHT_PADDING
 }
 
-export function estimateMaxWidth(flat: FlatNode[]): number {
+export function estimateMaxWidth(flat: FlatNode[], expandedIds: Set<number>): number {
   let max = 0
-  for (const { node, depth } of flat) {
-    const w = estimateRowWidth(node, depth)
+  for (const { node, depth, closingTag } of flat) {
+    const w = estimateRowWidth(node, depth, closingTag, expandedIds.has(node.id))
     if (w > max) max = w
   }
   return max
@@ -123,6 +139,7 @@ export function buildFlatList(
       flat.push({ node, depth, parent })
       if (expandedIds.has(node.id) && node.children.length > 0) {
         walk(node.children, depth + 1, node)
+        flat.push({ node, depth, parent, closingTag: true })
       }
     }
   }
