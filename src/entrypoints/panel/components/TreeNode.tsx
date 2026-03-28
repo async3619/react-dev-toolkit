@@ -10,6 +10,8 @@ interface TreeNodeProps {
   filter: string
   expanded: boolean
   isSelected: boolean
+  showProps: boolean
+  showBadges: boolean
   onSelect: (node: ComponentNode) => void
   onToggle: (nodeId: number) => void
   onCollapse: (nodeId: number) => void
@@ -23,6 +25,8 @@ export const TreeNode = memo(function TreeNode({
   filter,
   expanded,
   isSelected,
+  showProps,
+  showBadges,
   onSelect,
   onToggle,
   onCollapse,
@@ -65,7 +69,7 @@ export const TreeNode = memo(function TreeNode({
       <span className="text-yellow-300">
         {highlightName(node.name, filter)}
       </span>
-      {Object.keys(node.props).length > 0 && (
+      {showProps && Object.keys(node.props).length > 0 && (
         <span className="text-gray-500 ml-1 truncate">
           {Object.keys(node.props)
             .slice(0, 3)
@@ -74,7 +78,7 @@ export const TreeNode = memo(function TreeNode({
         </span>
       )}
       <span className="text-blue-400">{hasChildren ? '>' : ' />'}</span>
-      {node.hocs && node.hocs.length > 0 && (
+      {showBadges && node.hocs && node.hocs.length > 0 && (
         <span className="ml-1 flex items-center gap-0.5 shrink-0">
           {node.hocs.map((hoc) => (
             <span

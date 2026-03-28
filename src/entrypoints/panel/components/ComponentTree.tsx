@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { ComponentNode } from '@/types'
 import { useOverlayScrollbar } from '../hooks/useOverlayScrollbar'
+import { usePersistedState } from '../hooks/usePersistedState'
 import { useTreeNavigation } from '../hooks/useTreeNavigation'
 import { useVirtualScroll } from '../hooks/useVirtualScroll'
 import { estimateMaxWidth } from '../utils/tree'
@@ -33,7 +34,9 @@ export function ComponentTree({
   const hostRef = useRef<HTMLDivElement>(null)
   const viewportRef = useOverlayScrollbar(hostRef)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
-  const [firstPartyOnly, setFirstPartyOnly] = useState(false)
+  const [firstPartyOnly, setFirstPartyOnly] = usePersistedState('rdt:firstPartyOnly', false)
+  const [showProps, setShowProps] = usePersistedState('rdt:showProps', true)
+  const [showBadges, setShowBadges] = usePersistedState('rdt:showBadges', true)
 
   const {
     filter,
@@ -104,6 +107,10 @@ export function ComponentTree({
         onToggleInspect={handleToggleInspect}
         firstPartyOnly={firstPartyOnly}
         onFirstPartyOnlyChange={setFirstPartyOnly}
+        showProps={showProps}
+        onShowPropsChange={setShowProps}
+        showBadges={showBadges}
+        onShowBadgesChange={setShowBadges}
       />
       <div
         ref={hostRef}
@@ -134,6 +141,8 @@ export function ComponentTree({
                   filter={filter}
                   expanded={expandedIds.has(item.node.id)}
                   isSelected={selectedId === item.node.id}
+                  showProps={showProps}
+                  showBadges={showBadges}
                   onSelect={handleSelect}
                   onToggle={toggleExpand}
                   onCollapse={(id) => collapseWithChildren(id, filteredTree)}
