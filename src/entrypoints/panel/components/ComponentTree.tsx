@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentNode } from '@/types'
+import { useOverlayScrollbar } from '../hooks/useOverlayScrollbar'
 import { useTreeNavigation } from '../hooks/useTreeNavigation'
 import { useVirtualScroll } from '../hooks/useVirtualScroll'
 import { estimateMaxWidth } from '../utils/tree'
@@ -29,7 +30,8 @@ export function ComponentTree({
   onStopInspect,
   onConsumeInspectedNodeId,
 }: ComponentTreeProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useOverlayScrollbar(hostRef)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
   const [firstPartyOnly, setFirstPartyOnly] = useState(false)
 
@@ -54,9 +56,8 @@ export function ComponentTree({
     endIndex,
     totalHeight,
     offsetY,
-    onScroll,
     scrollToIndex,
-  } = useVirtualScroll(containerRef, flat.length)
+  } = useVirtualScroll(viewportRef, flat.length)
 
   // Scroll selected node into view
   useEffect(() => {
@@ -78,7 +79,7 @@ export function ComponentTree({
     (node: ComponentNode) => {
       select(node)
       onHighlight(node.id, node.name)
-      containerRef.current?.focus()
+      hostRef.current?.focus()
     },
     [select, onHighlight],
   )
@@ -105,11 +106,10 @@ export function ComponentTree({
         onFirstPartyOnlyChange={setFirstPartyOnly}
       />
       <div
-        ref={containerRef}
-        className="flex-1 overflow-auto focus:outline-none"
+        ref={hostRef}
+        className="flex-1 overflow-hidden focus:outline-none"
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        onScroll={onScroll}
       >
         {filteredTree.length === 0 && filter && (
           <div className="p-4 text-gray-500 text-sm">

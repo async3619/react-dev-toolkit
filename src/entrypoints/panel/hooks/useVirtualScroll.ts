@@ -8,7 +8,6 @@ interface VirtualScrollResult {
   endIndex: number
   totalHeight: number
   offsetY: number
-  onScroll: () => void
   scrollToIndex: (index: number, itemLeft?: number) => void
 }
 
@@ -34,11 +33,22 @@ export function useVirtualScroll(
     return () => ro.disconnect()
   }, [containerRef])
 
-  const onScroll = useCallback(() => {
-    cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => {
-      setScrollTop(containerRef.current?.scrollTop ?? 0)
-    })
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const handleScroll = () => {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        setScrollTop(el.scrollTop)
+      })
+    }
+
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      el.removeEventListener('scroll', handleScroll)
+    }
   }, [containerRef])
 
   const totalHeight = itemCount * ROW_HEIGHT
@@ -75,7 +85,7 @@ export function useVirtualScroll(
     [containerRef],
   )
 
-  return { startIndex, endIndex, totalHeight, offsetY, onScroll, scrollToIndex }
+  return { startIndex, endIndex, totalHeight, offsetY, scrollToIndex }
 }
 
 export { ROW_HEIGHT }
