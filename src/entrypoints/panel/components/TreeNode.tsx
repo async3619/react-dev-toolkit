@@ -78,6 +78,14 @@ export const TreeNode = memo(function TreeNode({
         </span>
       )}
       <span className="text-blue-400">{hasChildren ? '>' : ' />'}</span>
+      {hasChildren && !expanded && (
+        <>
+          <span className="text-gray-500">{'…'}</span>
+          <span className="text-blue-400">{'</'}</span>
+          <span className="text-yellow-300">{node.name}</span>
+          <span className="text-blue-400">{'>'}</span>
+        </>
+      )}
       {showBadges && node.hocs && node.hocs.length > 0 && (
         <span className="ml-1 flex items-center gap-0.5 shrink-0">
           {node.hocs.map((hoc) => (

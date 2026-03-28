@@ -54,12 +54,12 @@ export function useTreeNavigation(
   )
 
   const selectedNode = useMemo(
-    () => flat.find((n) => n.node.id === selectedId)?.node ?? null,
+    () => flat.find((n) => !n.closingTag && n.node.id === selectedId)?.node ?? null,
     [flat, selectedId],
   )
 
   const selectedIndex = useMemo(
-    () => (selectedId !== null ? flat.findIndex((n) => n.node.id === selectedId) : -1),
+    () => (selectedId !== null ? flat.findIndex((n) => !n.closingTag && n.node.id === selectedId) : -1),
     [flat, selectedId],
   )
 
@@ -136,20 +136,34 @@ export function useTreeNavigation(
     (e: React.KeyboardEvent) => {
       if (selectedId === null) return
 
-      const idx = flat.findIndex((n) => n.node.id === selectedId)
+      const idx = flat.findIndex((n) => !n.closingTag && n.node.id === selectedId)
       if (idx === -1) return
 
       const current = flat[idx].node
       const isExpanded = expandedIds.has(current.id)
       const hasChildren = current.children.length > 0
 
+      const findNext = (from: number): number => {
+        for (let i = from + 1; i < flat.length; i++) {
+          if (!flat[i].closingTag) return i
+        }
+        return from
+      }
+      const findPrev = (from: number): number => {
+        for (let i = from - 1; i >= 0; i--) {
+          if (!flat[i].closingTag) return i
+        }
+        return from
+      }
+
       switch (e.key) {
         case 'ArrowRight': {
           e.preventDefault()
           if (hasChildren && !isExpanded) {
             toggleExpand(current.id)
-          } else if (idx + 1 < flat.length) {
-            setSelectedId(flat[idx + 1].node.id)
+          } else {
+            const next = findNext(idx)
+            if (next !== idx) setSelectedId(flat[next].node.id)
           }
           break
         }
@@ -157,23 +171,22 @@ export function useTreeNavigation(
           e.preventDefault()
           if (hasChildren && isExpanded) {
             collapseWithChildren(current.id, filteredTree)
-          } else if (idx - 1 >= 0) {
-            setSelectedId(flat[idx - 1].node.id)
+          } else {
+            const prev = findPrev(idx)
+            if (prev !== idx) setSelectedId(flat[prev].node.id)
           }
           break
         }
         case 'ArrowDown': {
           e.preventDefault()
-          if (idx + 1 < flat.length) {
-            setSelectedId(flat[idx + 1].node.id)
-          }
+          const next = findNext(idx)
+          if (next !== idx) setSelectedId(flat[next].node.id)
           break
         }
         case 'ArrowUp': {
           e.preventDefault()
-          if (idx - 1 >= 0) {
-            setSelectedId(flat[idx - 1].node.id)
-          }
+          const prev = findPrev(idx)
+          if (prev !== idx) setSelectedId(flat[prev].node.id)
           break
         }
       }
