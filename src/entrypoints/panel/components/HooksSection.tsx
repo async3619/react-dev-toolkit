@@ -21,7 +21,7 @@ function HookEntry({ hook, depth = 0 }: HookEntryProps) {
   const showValue = hook.value !== undefined;
 
   return (
-    <div style={{ paddingLeft: `${depth * 12}px` }}>
+    <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
       <div className="flex items-start gap-1 text-sm min-w-0">
         {hasChildren ? (
           <button
