@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import type { HookInfo } from "@/types";
 import { PropValue } from "./PropValue";
@@ -79,11 +79,12 @@ interface HooksSectionProps {
 
 export function HooksSection({ hooks }: HooksSectionProps) {
   const [filter, setFilter] = useState("");
+  const deferredFilter = useDeferredValue(filter);
 
   const filtered = useMemo(() => {
-    if (!filter) return hooks;
-    return hooks.filter((hook) => hookMatches(hook, filter));
-  }, [hooks, filter]);
+    if (!deferredFilter) return hooks;
+    return hooks.filter((hook) => hookMatches(hook, deferredFilter));
+  }, [hooks, deferredFilter]);
 
   return (
     <SidebarSection title={`Hooks (${hooks.length})`}>
@@ -102,7 +103,7 @@ export function HooksSection({ hooks }: HooksSectionProps) {
           <p className="text-gray-500 text-xs">No matching hooks.</p>
         ) : (
           filtered.map((hook, i) => (
-            <HookEntry key={i} hook={hook} forceExpand={!!filter} filter={filter} />
+            <HookEntry key={i} hook={hook} forceExpand={!!deferredFilter} filter={deferredFilter} />
           ))
         )}
       </div>
