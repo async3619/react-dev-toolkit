@@ -3,6 +3,7 @@ export interface ComponentNode {
   name: string;
   props: Record<string, unknown>;
   children: ComponentNode[];
+  source?: "first-party" | "third-party";
 }
 
 export type MessageType =

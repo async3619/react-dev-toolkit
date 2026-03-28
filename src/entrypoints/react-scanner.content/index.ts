@@ -1,5 +1,107 @@
 // This script runs in the page's main world to access React internals
 
+import { SourceMapConsumer, type RawSourceMap } from "source-map-js";
+
+// --- Source map resolution ---
+
+interface ScriptEntry {
+  content: string;
+  consumer: SourceMapConsumer | null;
+}
+
+const scriptEntries = new Map<string, ScriptEntry>();
+const fnSourceCache = new Map<unknown, "first-party" | "third-party" | undefined>();
+let sourceMapsLoaded = false;
+
+async function loadSourceMaps(): Promise<void> {
+  if (sourceMapsLoaded) return;
+  sourceMapsLoaded = true;
+
+  const scripts = document.querySelectorAll<HTMLScriptElement>("script[src]");
+
+  await Promise.allSettled(
+    Array.from(scripts).map(async (script) => {
+      const url = script.src;
+      if (!url || scriptEntries.has(url)) return;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const content = await res.text();
+
+        const match = content.match(
+          /\/\/[#@]\s*sourceMappingURL=(.+?)[\s]*$/m,
+        );
+        let consumer: SourceMapConsumer | null = null;
+
+        if (match) {
+          try {
+            let rawMap: RawSourceMap;
+            if (match[1].startsWith("data:")) {
+              const base64 = match[1].split(",")[1];
+              rawMap = JSON.parse(atob(base64));
+            } else {
+              const smUrl = new URL(match[1], url).href;
+              const smRes = await fetch(smUrl);
+              rawMap = await smRes.json();
+            }
+            consumer = new SourceMapConsumer(rawMap);
+          } catch {
+            // source map fetch/parse failed
+          }
+        }
+
+        scriptEntries.set(url, { content, consumer });
+      } catch {
+        // script fetch failed (CORS, etc.)
+      }
+    }),
+  );
+}
+
+function resolveSourceFromMap(
+  fn: unknown,
+): "first-party" | "third-party" | undefined {
+  if (fnSourceCache.has(fn)) return fnSourceCache.get(fn);
+
+  if (typeof fn !== "function") {
+    fnSourceCache.set(fn, undefined);
+    return undefined;
+  }
+
+  const fnStr = fn.toString();
+  if (fnStr.length < 10) {
+    fnSourceCache.set(fn, undefined);
+    return undefined;
+  }
+
+  for (const [, entry] of scriptEntries) {
+    if (!entry.consumer) continue;
+
+    const idx = entry.content.indexOf(fnStr);
+    if (idx === -1) continue;
+
+    const before = entry.content.substring(0, idx);
+    const lines = before.split("\n");
+    const line = lines.length;
+    const column = lines[lines.length - 1].length;
+
+    const pos = entry.consumer.originalPositionFor({ line, column });
+    if (pos.source) {
+      const result = pos.source.includes("node_modules")
+        ? ("third-party" as const)
+        : ("first-party" as const);
+      fnSourceCache.set(fn, result);
+      return result;
+    }
+  }
+
+  fnSourceCache.set(fn, undefined);
+  return undefined;
+}
+
+// --- Fiber walking ---
+
 interface FiberNode {
   tag: number;
   type: unknown;
@@ -15,6 +117,7 @@ interface ComponentNode {
   name: string;
   props: Record<string, unknown>;
   children: ComponentNode[];
+  source?: "first-party" | "third-party";
 }
 
 let nodeIdCounter = 0;
@@ -81,6 +184,31 @@ function serializeProps(props: Record<string, unknown>): Record<string, unknown>
   return result;
 }
 
+function getComponentSource(fiber: FiberNode): "first-party" | "third-party" | undefined {
+  // Try _debugSource first (available in dev builds)
+  const debugSource = fiber._debugSource;
+  if (debugSource?.fileName) {
+    return debugSource.fileName.includes("node_modules") ? "third-party" : "first-party";
+  }
+
+  // Fallback: resolve via source maps (for production builds)
+  const type = fiber.type;
+  if (typeof type === "function") {
+    return resolveSourceFromMap(type);
+  }
+
+  // Handle wrapped types (forwardRef, memo)
+  if (typeof type === "object" && type !== null) {
+    const inner = (type as { render?: unknown; type?: unknown }).render
+      || (type as { render?: unknown; type?: unknown }).type;
+    if (typeof inner === "function") {
+      return resolveSourceFromMap(inner);
+    }
+  }
+
+  return undefined;
+}
+
 function walkFiber(fiber: FiberNode): ComponentNode[] {
   const nodes: ComponentNode[] = [];
   const name = getFiberName(fiber);
@@ -104,11 +232,14 @@ function walkFiber(fiber: FiberNode): ComponentNode[] {
       elementToNodeMap.set(domEl, { id, name });
     }
 
+    const source = getComponentSource(fiber);
+
     nodes.push({
       id,
       name,
       props: serializeProps(fiber.memoizedProps || {}),
       children,
+      source,
     });
   } else {
     let child = fiber.child;
@@ -336,7 +467,8 @@ function hookIntoReact() {
   };
 }
 
-function startWatching() {
+async function startWatching() {
+  await loadSourceMaps();
   scanTree();
   hookIntoReact();
 
