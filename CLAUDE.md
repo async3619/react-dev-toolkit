@@ -18,3 +18,8 @@ All code, documentation, comments, and commit messages in this repository must b
 ### Pull Requests
 
 - All PR titles must follow the [Conventional Commits](https://www.conventionalcommits.org/) standard (e.g. `feat: add component tree view`, `fix: resolve state sync issue`).
+
+### Code Organization
+
+- Utility functions must not be defined inline within component files. Extract them into `utils/` directory files grouped by concern (e.g. `utils/tree.ts`, `utils/format.ts`).
+- Each component must follow the Single Responsibility Principle — one component, one job. If a component handles multiple concerns (e.g. layout, filtering, keyboard navigation, resize), split it into focused sub-components or custom hooks.
