@@ -30,10 +30,14 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
   const custom = isCustomHook(hook);
   const nameColor = custom ? "text-yellow-300" : "text-blue-400";
   const showValue = hook.value !== undefined;
+  const isDirectMatch = filter && (
+    hook.name.toLowerCase().includes(filter.toLowerCase()) ||
+    (hook.id !== null && String(hook.id) === filter)
+  );
 
   return (
     <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
-      <div className="flex items-start gap-1 text-sm min-w-0">
+      <div className={`flex items-start gap-1 text-sm min-w-0${isDirectMatch ? " bg-yellow-500/15 rounded px-1 -mx-1" : ""}`}>
         {hasChildren ? (
           <button
             type="button"
