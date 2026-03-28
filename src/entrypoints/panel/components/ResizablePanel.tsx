@@ -1,13 +1,14 @@
-import { useState, useRef, useCallback, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useRef, useCallback, type ReactNode, type RefObject, type MouseEvent as ReactMouseEvent } from "react";
 
 interface ResizablePanelProps {
   left: ReactNode;
   right: ReactNode;
+  rightScrollRef?: RefObject<HTMLDivElement | null>;
   defaultWidth?: number;
   minWidth?: number;
 }
 
-export function ResizablePanel({ left, right, defaultWidth = 288, minWidth = 150 }: ResizablePanelProps) {
+export function ResizablePanel({ left, right, rightScrollRef, defaultWidth = 288, minWidth = 150 }: ResizablePanelProps) {
   const [width, setWidth] = useState(defaultWidth);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -39,7 +40,7 @@ export function ResizablePanel({ left, right, defaultWidth = 288, minWidth = 150
         className="w-1 shrink-0 cursor-col-resize bg-gray-700 hover:bg-blue-500 active:bg-blue-500 transition-colors"
         onMouseDown={handleDragStart}
       />
-      <div className="overflow-auto shrink-0" style={{ width: `${width}px` }}>
+      <div ref={rightScrollRef} className="overflow-auto shrink-0" style={{ width: `${width}px` }}>
         {right}
       </div>
     </div>

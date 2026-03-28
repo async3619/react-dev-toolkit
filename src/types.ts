@@ -1,9 +1,16 @@
+export interface SourceLocation {
+  fileName: string;
+  lineNumber: number;
+  columnNumber?: number;
+}
+
 export interface ComponentNode {
   id: number;
   name: string;
   props: Record<string, unknown>;
   children: ComponentNode[];
   source?: "first-party" | "third-party";
+  sourceLocation?: SourceLocation;
 }
 
 export type MessageType =
