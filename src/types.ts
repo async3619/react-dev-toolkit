@@ -16,6 +16,12 @@ export interface ComponentNode {
   sourceLocation?: SourceLocation;
 }
 
+export interface HookInfo {
+  name: string;
+  value: unknown;
+  subHooks: HookInfo[];
+}
+
 export type MessageType =
   | { type: "SCAN_REACT_TREE" }
   | { type: "REACT_TREE_RESULT"; tree: ComponentNode[] | null; error?: string }

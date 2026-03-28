@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ComponentNode } from '@/types'
+import type { ComponentNode, HookInfo } from '@/types'
 
 type TreeState =
   | { status: 'idle' }
@@ -13,6 +13,7 @@ export function useComponentTree() {
   const [state, setState] = useState<TreeState>({ status: 'idle' })
   const [inspectedNodeId, setInspectedNodeId] = useState<number | null>(null)
   const [inspecting, setInspecting] = useState(false)
+  const [hooks, setHooks] = useState<HookInfo[] | null>(null)
   const portRef = useRef<ReturnType<typeof browser.runtime.connect> | null>(
     null,
   )
@@ -96,6 +97,30 @@ export function useComponentTree() {
     )
   }, [])
 
+  const inspectHooks = useCallback((nodeId: number) => {
+    setHooks(null)
+    // Wrap in JSON round-trip to ensure eval result is serializable.
+    // Chrome devtools eval can only transfer JSON-compatible values.
+    ;(browser.devtools.inspectedWindow.eval as (
+      expression: string,
+      callback: (result: unknown, exceptionInfo: unknown) => void,
+    ) => void)(
+      `JSON.stringify(window.__REACT_DEV_TOOLKIT_INSPECT_HOOKS__(${nodeId}))`,
+      (result, exceptionInfo) => {
+        if (!exceptionInfo && typeof result === 'string') {
+          try {
+            const parsed = JSON.parse(result)
+            if (Array.isArray(parsed)) {
+              setHooks(parsed as HookInfo[])
+            }
+          } catch {
+            // parse failed
+          }
+        }
+      },
+    )
+  }, [])
+
   const consumeInspectedNodeId = useCallback(() => {
     const id = inspectedNodeId
     setInspectedNodeId(null)
@@ -112,5 +137,7 @@ export function useComponentTree() {
     startInspect,
     stopInspect,
     consumeInspectedNodeId,
+    hooks,
+    inspectHooks,
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import type { ComponentNode } from '@/types'
+import type { ComponentNode, HookInfo } from '@/types'
 import { useOverlayScrollbar } from '../hooks/useOverlayScrollbar'
 import { usePersistedState } from '../hooks/usePersistedState'
 import { useTreeNavigation } from '../hooks/useTreeNavigation'
@@ -20,6 +20,8 @@ interface ComponentTreeProps {
   onStartInspect: () => void
   onStopInspect: () => void
   onConsumeInspectedNodeId: () => number | null
+  hooks: HookInfo[] | null
+  onInspectHooks: (nodeId: number) => void
 }
 
 export function ComponentTree({
@@ -31,6 +33,8 @@ export function ComponentTree({
   onStartInspect,
   onStopInspect,
   onConsumeInspectedNodeId,
+  hooks,
+  onInspectHooks,
 }: ComponentTreeProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewportRef = useOverlayScrollbar(hostRef)
@@ -72,6 +76,13 @@ export function ComponentTree({
     }
     prevSelectedIndexRef.current = selectedIndex
   }, [selectedIndex, flat, scrollToIndex])
+
+  // Inspect hooks when selection changes
+  useEffect(() => {
+    if (selectedId !== null) {
+      onInspectHooks(selectedId)
+    }
+  }, [selectedId, onInspectHooks])
 
   // When an element is inspected on the page, select it in the tree
   useEffect(() => {
@@ -175,7 +186,7 @@ export function ComponentTree({
   return (
     <ResizablePanel
       left={treePanel}
-      right={<PropsPanel node={selectedNode} tree={tree} onSelectNode={handleSelect} scrollRef={sidebarScrollRef} />}
+      right={<PropsPanel node={selectedNode} tree={tree} onSelectNode={handleSelect} scrollRef={sidebarScrollRef} hooks={hooks} />}
       rightScrollRef={sidebarScrollRef}
     />
   )

@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
-import type { ComponentNode } from "@/types";
+import type { ComponentNode, HookInfo } from "@/types";
+import { HooksSection } from "./HooksSection";
 import { PropValue } from "./PropValue";
 import { RenderTree } from "./RenderTree";
 import { SidebarSection } from "./SidebarSection";
@@ -11,9 +12,10 @@ interface PropsPanelProps {
   tree: ComponentNode[];
   onSelectNode: (node: ComponentNode) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  hooks: HookInfo[] | null;
 }
 
-export function PropsPanel({ node, tree, onSelectNode, scrollRef }: PropsPanelProps) {
+export function PropsPanel({ node, tree, onSelectNode, scrollRef, hooks }: PropsPanelProps) {
   if (!node) {
     return (
       <div className="p-4 text-gray-500 text-sm">
@@ -49,6 +51,7 @@ export function PropsPanel({ node, tree, onSelectNode, scrollRef }: PropsPanelPr
           </div>
         )}
       </SidebarSection>
+      {hooks && hooks.length > 0 && <HooksSection hooks={hooks} />}
       <RenderTree
         tree={tree}
         selectedNode={node}

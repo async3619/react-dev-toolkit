@@ -11,6 +11,8 @@ export function ComponentsTab() {
     startInspect,
     stopInspect,
     consumeInspectedNodeId,
+    hooks,
+    inspectHooks,
   } = useComponentTree();
 
   if (state.status === "idle") {
@@ -55,6 +57,8 @@ export function ComponentsTab() {
       onStartInspect={startInspect}
       onStopInspect={stopInspect}
       onConsumeInspectedNodeId={consumeInspectedNodeId}
+      hooks={hooks}
+      onInspectHooks={inspectHooks}
     />
   );
 }
