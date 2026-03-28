@@ -7,6 +7,7 @@ import { estimateMaxWidth } from '../utils/tree'
 import { PropsPanel } from './PropsPanel'
 import { ResizablePanel } from './ResizablePanel'
 import { TreeFilter } from './TreeFilter'
+import { ClosingTagNode } from './ClosingTagNode'
 import { TreeNode } from './TreeNode'
 
 interface ComponentTreeProps {
@@ -92,7 +93,7 @@ export function ComponentTree({
     }
   }, [inspecting, onStartInspect, onStopInspect])
 
-  const contentWidth = useMemo(() => estimateMaxWidth(flat), [flat])
+  const contentWidth = useMemo(() => estimateMaxWidth(flat, expandedIds), [flat, expandedIds])
   const visibleItems = flat.slice(startIndex, endIndex)
 
   const treePanel = (
@@ -126,21 +127,29 @@ export function ComponentTree({
                 right: 0,
               }}
             >
-              {visibleItems.map((item) => (
-                <TreeNode
-                  key={item.node.id}
-                  node={item.node}
-                  depth={item.depth}
-                  filter={filter}
-                  expanded={expandedIds.has(item.node.id)}
-                  isSelected={selectedId === item.node.id}
-                  onSelect={handleSelect}
-                  onToggle={toggleExpand}
-                  onCollapse={(id) => collapseWithChildren(id, filteredTree)}
-                  onHover={onHighlight}
-                  onHoverEnd={onHideHighlight}
-                />
-              ))}
+              {visibleItems.map((item) =>
+                item.closingTag ? (
+                  <ClosingTagNode
+                    key={`${item.node.id}-close`}
+                    name={item.node.name}
+                    depth={item.depth}
+                  />
+                ) : (
+                  <TreeNode
+                    key={item.node.id}
+                    node={item.node}
+                    depth={item.depth}
+                    filter={filter}
+                    expanded={expandedIds.has(item.node.id)}
+                    isSelected={selectedId === item.node.id}
+                    onSelect={handleSelect}
+                    onToggle={toggleExpand}
+                    onCollapse={(id) => collapseWithChildren(id, filteredTree)}
+                    onHover={onHighlight}
+                    onHoverEnd={onHideHighlight}
+                  />
+                ),
+              )}
             </div>
           </div>
         )}
