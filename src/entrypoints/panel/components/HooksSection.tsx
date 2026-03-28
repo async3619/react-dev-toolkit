@@ -61,7 +61,7 @@ interface HooksSectionProps {
 
 export function HooksSection({ hooks }: HooksSectionProps) {
   return (
-    <SidebarSection title={`Hooks (${hooks.length})`}>
+    <SidebarSection title={`Hooks (${hooks.length})`} defaultOpen={false}>
       <div className="space-y-0.5">
         {hooks.map((hook, i) => (
           <HookEntry key={i} hook={hook} />
