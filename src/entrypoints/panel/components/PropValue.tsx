@@ -41,14 +41,14 @@ function ReactElementValue({ value, depth = 0 }: { value: SerializedReactElement
         <div style={{ paddingLeft: "12px" }}>
           <span className="text-yellow-400">{`<${value.name}`}</span>
           {value.key != null && (
-            <div className="flex gap-2" style={{ paddingLeft: "8px" }}>
-              <span className="text-purple-400 shrink-0">key:</span>
+            <div style={{ paddingLeft: "8px" }}>
+              <span className="text-purple-400">key: </span>
               <PropValue value={value.key} depth={depth + 1} />
             </div>
           )}
           {value.props && Object.entries(value.props).map(([key, val]) => (
-            <div key={key} className="flex gap-2" style={{ paddingLeft: "8px" }}>
-              <span className="text-purple-400 shrink-0">{key}:</span>
+            <div key={key} style={{ paddingLeft: "8px" }}>
+              <span className="text-purple-400">{key}: </span>
               <PropValue value={val} depth={depth + 1} />
             </div>
           ))}
@@ -76,7 +76,7 @@ export function PropValue({ value, depth = 0 }: PropValueProps) {
     }
     return (
       <Tooltip content={formatted}>
-        <span className={`${colorClass} truncate block`}>{formatted}</span>
+        <span className={`${colorClass} truncate inline-block max-w-full align-bottom`}>{formatted}</span>
       </Tooltip>
     );
   }
@@ -108,9 +108,9 @@ export function PropValue({ value, depth = 0 }: PropValueProps) {
         <div style={{ paddingLeft: `${12}px` }}>
           <span className="text-gray-500">{open}</span>
           {entries.map(([key, val]) => (
-            <div key={key} className="flex gap-2" style={{ paddingLeft: "8px" }}>
-              <span className={isArray ? "text-gray-500 shrink-0" : "text-purple-400 shrink-0"}>
-                {key}:
+            <div key={key} style={{ paddingLeft: "8px" }}>
+              <span className={isArray ? "text-gray-500" : "text-purple-400"}>
+                {key}:{" "}
               </span>
               <PropValue value={val} depth={depth + 1} />
             </div>
