@@ -1,7 +1,8 @@
 import type { FiberNode } from "./types";
-import type { ProfileCommitData, ProfileFiberNode } from "@/types";
+import type { ProfileCommitData, ProfileFiberNode, HookInfo } from "@/types";
 import { getFiberName, findNearestDomElement } from "./fiber";
 import { highlightElement, hideHighlight } from "./highlight";
+import { inspectHooksOfFiberDirect } from "./hooks";
 
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
@@ -11,6 +12,9 @@ let profilerNodeIdCounter = 0;
 
 /** Maps profiler node IDs to their nearest DOM elements for highlighting */
 export const profilerNodeToElementMap = new Map<number, Element>();
+
+/** Maps profiler node IDs to fibers for hook inspection */
+const profilerNodeToFiberMap = new Map<number, FiberNode>();
 
 function nextProfilerNodeId(): number {
   return profilerNodeIdCounter++;
@@ -30,6 +34,7 @@ export function startProfiling() {
   commitIdCounter = 0;
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
+  profilerNodeToFiberMap.clear();
 }
 
 export function stopProfiling() {
@@ -95,14 +100,19 @@ function walkFiberForProfiling(
       const didRender = selfDuration > 0;
 
       const nodeId = nextProfilerNodeId();
+      profilerNodeToFiberMap.set(nodeId, fiber);
       const domEl = findNearestDomElement(fiber);
       if (domEl) {
         profilerNodeToElementMap.set(nodeId, domEl);
       }
 
-      const renderReasons = didRender
-        ? detectRenderReasons(fiber)
-        : undefined;
+      let renderReasons: string[] | undefined;
+      let changedHookIndices: number[] | undefined;
+      if (didRender) {
+        const result = detectRenderReasons(fiber);
+        renderReasons = result.reasons;
+        changedHookIndices = result.changedHookIndices;
+      }
 
       out.push({
         nodeId,
@@ -114,6 +124,7 @@ function walkFiberForProfiling(
         children,
         didRender,
         renderReasons,
+        changedHookIndices,
       });
       return;
     }
@@ -127,13 +138,13 @@ function walkFiberForProfiling(
   }
 }
 
-function detectRenderReasons(fiber: FiberNode): string[] {
+function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[] } {
   const reasons: string[] = [];
+  let changedHookIndices: number[] | undefined;
   const alt = fiber.alternate;
 
   if (!alt) {
-    reasons.push("First render");
-    return reasons;
+    return { reasons: ["First render"] };
   }
 
   // Props changed
@@ -155,37 +166,16 @@ function detectRenderReasons(fiber: FiberNode): string[] {
     }
   }
 
-  // State changed (hook linked list comparison)
+  // Hook changes — walk linked list using _debugHookTypes for accurate classification
   if (alt.memoizedState !== fiber.memoizedState) {
-    let prevHook = alt.memoizedState;
-    let nextHook = fiber.memoizedState;
-    let stateChanged = false;
-
-    while (prevHook && nextHook) {
-      if (
-        typeof prevHook === "object" &&
-        prevHook !== null &&
-        "memoizedState" in prevHook &&
-        typeof nextHook === "object" &&
-        nextHook !== null &&
-        "memoizedState" in nextHook
-      ) {
-        const prev = (prevHook as { memoizedState: unknown }).memoizedState;
-        const next = (nextHook as { memoizedState: unknown }).memoizedState;
-        if (prev !== next) {
-          stateChanged = true;
-          break;
-        }
-        prevHook = (prevHook as unknown as { next: unknown }).next;
-        nextHook = (nextHook as unknown as { next: unknown }).next;
-      } else {
-        stateChanged = true;
-        break;
-      }
-    }
-
-    if (stateChanged) {
-      reasons.push("State changed");
+    const hookResult = detectHookChanges(
+      alt.memoizedState,
+      fiber.memoizedState,
+      fiber._debugHookTypes,
+    );
+    if (hookResult.ids.length > 0) {
+      changedHookIndices = hookResult.ids;
+      reasons.push(`Hook(s) ${hookResult.ids.join(", ")} changed`);
     }
   }
 
@@ -212,5 +202,63 @@ function detectRenderReasons(fiber: FiberNode): string[] {
     reasons.push("Parent re-rendered");
   }
 
-  return reasons;
+  return { reasons, changedHookIndices };
+}
+
+interface HookNode {
+  memoizedState: unknown;
+  next: HookNode | null;
+}
+
+function isHookNode(v: unknown): v is HookNode {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "memoizedState" in v &&
+    "next" in v
+  );
+}
+
+/** Noise hooks whose memoizedState changes are internal / not actionable */
+const SKIP_HOOK_TYPES = new Set([
+  "useEffect",
+  "useLayoutEffect",
+  "useInsertionEffect",
+  "useImperativeHandle",
+  "useDebugValue",
+]);
+
+function detectHookChanges(
+  prevState: unknown,
+  nextState: unknown,
+  debugHookTypes?: string[] | null,
+): { ids: number[] } {
+  const ids: number[] = [];
+  let prev = prevState;
+  let next = nextState;
+  let index = 0;
+
+  while (isHookNode(prev) && isHookNode(next)) {
+    const hookType = debugHookTypes?.[index] ?? null;
+
+    if (prev.memoizedState !== next.memoizedState) {
+      if (!hookType || !SKIP_HOOK_TYPES.has(hookType)) {
+        // 1-based hook ID (matching hook tree ID assignment)
+        ids.push(index + 1);
+      }
+    }
+
+    prev = prev.next;
+    next = next.next;
+    index++;
+  }
+
+  return { ids };
+}
+
+/** Inspect hooks of a profiler node by its profiler-assigned nodeId */
+export function inspectProfilerNodeHooks(profilerNodeId: number): HookInfo[] | null {
+  const fiber = profilerNodeToFiberMap.get(profilerNodeId);
+  if (!fiber) return null;
+  return inspectHooksOfFiberDirect(fiber);
 }

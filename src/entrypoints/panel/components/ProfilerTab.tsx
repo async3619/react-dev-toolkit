@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Square, Flame, Trash2, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, X } from "lucide-react";
+import { Play, Square, Flame, Trash2, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { ProfileSessionMeta } from "../utils/profilerDb";
 import { Tooltip } from "./Tooltip";
@@ -9,7 +9,7 @@ import { FlameGraph, type FlameGraphHandle } from "./FlameGraph";
 import { useProfiler } from "../hooks/useProfiler";
 import { useOverlayScrollbar } from "../hooks/useOverlayScrollbar";
 import { type FlatBar, ROW_HEIGHT, flattenTree, collectRendered } from "../utils/profiler";
-import type { ProfileCommitData } from "@/types";
+import type { ProfileCommitData, HookInfo } from "@/types";
 
 export function ProfilerTab() {
   const {
@@ -242,7 +242,12 @@ function RecordedView({
   );
 
   const totalHeight = (maxDepth + 1) * ROW_HEIGHT;
-  const [hoveredBar, setHoveredBar] = useState<FlatBar | null>(null);
+  const [selectedBar, setSelectedBar] = useState<FlatBar | null>(null);
+
+  // Reset selected bar when commit changes
+  useEffect(() => {
+    setSelectedBar(null);
+  }, [selectedCommit]);
 
   const onFocusComponent = useCallback((name: string) => {
     flameGraphRef.current?.zoomToBar(name);
@@ -272,35 +277,65 @@ function RecordedView({
           ref={flameGraphRef}
           bars={bars}
           totalHeight={totalHeight}
-          onBarHover={setHoveredBar}
+          onBarSelect={setSelectedBar}
         />
       </div>
     </div>
   );
 
-  const sidebar = hoveredBar ? (
-    <BarDetailSidebar bar={hoveredBar} />
-  ) : (
-    <CommitSidebar
-      commit={selectedCommit}
-      commitIndex={selectedCommitIndex}
-      totalCommits={commits.length}
-      onFocusComponent={onFocusComponent}
-      onHighlight={onHighlight}
-      onHideHighlight={onHideHighlight}
-    />
+  const sidebar = (
+    <div className="relative h-full">
+      <CommitSidebar
+        commit={selectedCommit}
+        commitIndex={selectedCommitIndex}
+        totalCommits={commits.length}
+        onFocusComponent={onFocusComponent}
+        onHighlight={onHighlight}
+        onHideHighlight={onHideHighlight}
+      />
+      {selectedBar && (
+        <div className="absolute inset-0 bg-gray-900 overflow-auto">
+          <BarDetailSidebar bar={selectedBar} />
+        </div>
+      )}
+    </div>
   );
 
   return <ResizablePanel left={leftPanel} right={sidebar} />;
 }
 
 function BarDetailSidebar({ bar }: { bar: FlatBar }) {
+  const [hooks, setHooks] = useState<HookInfo[] | null>(null);
+
+  // Fetch hook tree when bar changes
+  useEffect(() => {
+    setHooks(null);
+    if (!bar.changedHookIndices?.length) return;
+
+    (browser.devtools.inspectedWindow.eval as (
+      expression: string,
+      callback: (result: unknown, exceptionInfo: unknown) => void,
+    ) => void)(
+      `JSON.stringify(window.__REACT_DEV_TOOLKIT_INSPECT_PROFILER_HOOKS__(${bar.nodeId}))`,
+      (result, exceptionInfo) => {
+        if (!exceptionInfo && typeof result === "string") {
+          try {
+            const parsed = JSON.parse(result);
+            if (Array.isArray(parsed)) setHooks(parsed as HookInfo[]);
+          } catch {
+            // parse failed
+          }
+        }
+      },
+    );
+  }, [bar.nodeId, bar.changedHookIndices]);
+
   return (
     <div>
       <SidebarSection title="Component" defaultOpen>
         <div className="space-y-2 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-yellow-300 font-mono font-semibold">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-yellow-300 font-mono font-semibold truncate" title={bar.name}>
               {bar.name}
             </span>
             {bar.hocs?.map((h) => (
@@ -355,6 +390,93 @@ function BarDetailSidebar({ bar }: { bar: FlatBar }) {
             )}
           </div>
         </SidebarSection>
+      )}
+
+      {bar.changedHookIndices && bar.changedHookIndices.length > 0 && hooks && (
+        <SidebarSection title="Hooks" defaultOpen>
+          <div className="space-y-0.5">
+            {filterHooksWithChanges(hooks, bar.changedHookIndices).map((hook, i) => (
+              <ProfilerHookEntry
+                key={i}
+                hook={hook}
+                changedIds={bar.changedHookIndices!}
+              />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+    </div>
+  );
+}
+
+/** Check if a hook or any of its descendants has an ID in the changed set */
+function hookContainsChanged(hook: HookInfo, changedIds: number[]): boolean {
+  if (hook.id !== null && changedIds.includes(hook.id)) return true;
+  return hook.subHooks.some((sub) => hookContainsChanged(sub, changedIds));
+}
+
+/** Filter top-level hooks to only those containing changes */
+function filterHooksWithChanges(hooks: HookInfo[], changedIds: number[]): HookInfo[] {
+  return hooks.filter((h) => hookContainsChanged(h, changedIds));
+}
+
+function ProfilerHookEntry({
+  hook,
+  changedIds,
+  depth = 0,
+}: {
+  hook: HookInfo;
+  changedIds: number[];
+  depth?: number;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const hasChildren = hook.subHooks.length > 0;
+  const isCustom = hasChildren;
+  const isDirectlyChanged = hook.id !== null && changedIds.includes(hook.id);
+  const nameColor = isCustom ? "text-yellow-300" : "text-blue-400";
+
+  const changedChildren = hook.subHooks.filter((sub) =>
+    hookContainsChanged(sub, changedIds),
+  );
+
+  return (
+    <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
+      <div
+        className={`text-xs min-w-0 rounded px-1 -mx-1 ${
+          isDirectlyChanged ? "bg-yellow-500/15" : ""
+        } ${hasChildren ? "cursor-pointer hover:bg-gray-800" : ""}`}
+        onClick={() => hasChildren && setExpanded(!expanded)}
+      >
+        <span className="inline-flex items-center gap-1 align-middle">
+          {hasChildren ? (
+            <span className="text-gray-500 shrink-0">
+              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </span>
+          ) : (
+            <span className="w-3 shrink-0" />
+          )}
+          <span className={nameColor}>
+            {hook.name}
+            {hook.id !== null && (
+              <span className="text-gray-500"> ({hook.id})</span>
+            )}
+          </span>
+          {isDirectlyChanged && (
+            <span className="text-yellow-500 text-[10px]">changed</span>
+          )}
+        </span>
+      </div>
+      {expanded && hasChildren && (
+        <div>
+          {changedChildren.map((sub, i) => (
+            <ProfilerHookEntry
+              key={i}
+              hook={sub}
+              changedIds={changedIds}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

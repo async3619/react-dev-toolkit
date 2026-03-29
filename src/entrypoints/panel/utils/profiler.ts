@@ -21,6 +21,7 @@ export interface FlatBar {
   didRender: boolean;
   intensity: number;
   renderReasons?: string[];
+  changedHookIndices?: number[];
   /** 0 = gray (not rendered), 1 = fully colored. Used for transition blending. */
   colorBlend?: number;
 }
@@ -104,6 +105,7 @@ function collectBars(
     didRender: isRendered,
     intensity,
     renderReasons: node.renderReasons,
+    changedHookIndices: node.changedHookIndices,
   });
 
   if (node.children.length === 0) return;

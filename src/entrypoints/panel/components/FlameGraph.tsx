@@ -1,5 +1,4 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
-import { createPortal } from "react-dom";
 import {
   type FlatBar,
   type FlameZoom,
@@ -122,9 +121,15 @@ function updateTooltipContent(tip: HTMLDivElement, bar: FlatBar) {
     ? `self: <span class="text-white">${bar.selfDuration.toFixed(1)}ms</span><span class="mx-1.5 text-gray-600">|</span>total: <span class="text-white">${bar.totalDuration.toFixed(1)}ms</span>`
     : `<span class="text-gray-500">Did not render</span>`;
 
+  const reasons =
+    bar.didRender && bar.renderReasons?.length
+      ? `<div class="text-gray-500 mt-0.5 border-t border-gray-700 pt-0.5">${bar.renderReasons.map((r) => `<div class="text-[10px]">${r}</div>`).join("")}</div>`
+      : "";
+
   tip.innerHTML =
     `<div class="flex items-center gap-1.5 mb-0.5"><span class="text-yellow-300 font-semibold">${bar.name}</span>${hocBadges}</div>` +
-    `<div class="text-gray-400">${timeInfo}</div>`;
+    `<div class="text-gray-400">${timeInfo}</div>` +
+    reasons;
 }
 
 function positionTooltip(tip: HTMLDivElement, x: number, y: number) {
@@ -163,17 +168,31 @@ export interface FlameGraphHandle {
 
 export const FlameGraph = forwardRef<
   FlameGraphHandle,
-  { bars: FlatBar[]; totalHeight: number; onBarHover?: (bar: FlatBar | null) => void }
->(function FlameGraph({ bars, totalHeight, onBarHover }, ref) {
+  { bars: FlatBar[]; totalHeight: number; onBarSelect?: (bar: FlatBar | null) => void }
+>(function FlameGraph({ bars, totalHeight, onBarSelect }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+
+  // Tooltip managed entirely outside React to avoid portal/reconciliation issues
+  useEffect(() => {
+    const tip = document.createElement("div");
+    tip.className =
+      "fixed z-[2147483647] pointer-events-none px-2.5 py-1.5 rounded bg-gray-800 border border-gray-600 shadow-lg text-xs font-mono";
+    tip.style.display = "none";
+    document.body.appendChild(tip);
+    tooltipRef.current = tip;
+    return () => {
+      tip.remove();
+      tooltipRef.current = null;
+    };
+  }, []);
   const hoveredRef = useRef<FlatBar | null>(null);
   const zoomAnimRef = useRef<ZoomAnim | null>(null);
   const transitionRef = useRef<CommitTransition | null>(null);
   const prevBarsRef = useRef<FlatBar[]>(bars);
-  const onBarHoverRef = useRef(onBarHover);
-  onBarHoverRef.current = onBarHover;
+  const onBarSelectRef = useRef(onBarSelect);
+  onBarSelectRef.current = onBarSelect;
   const rafId = useRef(0);
   const mouseRef = useRef({ x: 0, y: 0, active: false });
 
@@ -246,14 +265,13 @@ export const FlameGraph = forwardRef<
     const canvasRect = canvas.getBoundingClientRect();
     const hit = active ? hitTest(bars, canvasRect, x, y, zoom) : null;
 
-    // Highlight hovered component on the page + notify parent
+    // Highlight hovered component on the page
     if (hit !== hoveredRef.current) {
       if (hit) {
         highlightOnPage(hit.nodeId, hit.name);
       } else {
         hideHighlightOnPage();
       }
-      onBarHoverRef.current?.(hit);
     }
     hoveredRef.current = hit;
 
@@ -330,7 +348,6 @@ export const FlameGraph = forwardRef<
     if (hoveredRef.current) {
       hoveredRef.current = null;
       hideHighlightOnPage();
-      onBarHoverRef.current?.(null);
     }
   }, []);
 
@@ -354,6 +371,7 @@ export const FlameGraph = forwardRef<
       const bar = hitTest(bars, rect, e.clientX, e.clientY, currentZoom);
 
       if (!bar) {
+        // Click empty area → zoom out
         if (s) {
           zoomAnimRef.current = {
             ...s,
@@ -362,9 +380,11 @@ export const FlameGraph = forwardRef<
             depth: -1,
           };
         }
+        onBarSelectRef.current?.(null);
         return;
       }
 
+      // Click the currently zoomed anchor → zoom out
       if (
         s &&
         s.depth >= 0 &&
@@ -377,7 +397,9 @@ export const FlameGraph = forwardRef<
           targetWidth: 100,
           depth: -1,
         };
+        onBarSelectRef.current?.(null);
       } else {
+        // Zoom into clicked bar
         const prev = zoomAnimRef.current;
         zoomAnimRef.current = {
           currentLeft: prev?.currentLeft ?? 0,
@@ -388,6 +410,7 @@ export const FlameGraph = forwardRef<
           anchorLeft: bar.leftPct,
           anchorWidth: bar.widthPct,
         };
+        onBarSelectRef.current?.(bar);
       }
     },
     [bars],
@@ -400,6 +423,8 @@ export const FlameGraph = forwardRef<
       zoomToBar(name: string) {
         const bar = bars.find((b) => b.name === name);
         if (!bar) return;
+
+        onBarSelectRef.current?.(bar);
 
         const prev = zoomAnimRef.current;
         zoomAnimRef.current = {
@@ -446,14 +471,6 @@ export const FlameGraph = forwardRef<
         ref={canvasRef}
         style={{ display: "block", height: `${canvasHeight}px`, width: "100%" }}
       />
-      {createPortal(
-        <div
-          ref={tooltipRef}
-          className="fixed z-50 pointer-events-none px-2.5 py-1.5 rounded bg-gray-800 border border-gray-600 shadow-lg text-xs font-mono"
-          style={{ display: "none" }}
-        />,
-        document.body,
-      )}
     </div>
   );
 });

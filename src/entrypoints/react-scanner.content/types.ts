@@ -14,6 +14,8 @@ export interface FiberNode {
   actualDuration?: number;
   selfBaseDuration?: number;
   treeBaseDuration?: number;
+  /** Hook type names in call order (React dev builds only) */
+  _debugHookTypes?: string[] | null;
 }
 
 export interface SourceLocation {

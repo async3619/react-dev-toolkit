@@ -48,6 +48,8 @@ export interface ProfileFiberNode {
   children: ProfileFiberNode[];
   didRender: boolean;
   renderReasons?: string[];
+  /** 1-based hook IDs that changed (excluding effect hooks) */
+  changedHookIndices?: number[];
 }
 
 export type MessageType =

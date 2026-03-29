@@ -5,10 +5,11 @@ import { highlightElement, hideHighlight } from "./highlight";
 import { startInspecting, stopInspecting } from "./inspect";
 import { scanTree, startWatching, stopWatching, hookIntoReact } from "./watcher";
 import { inspectHooksOfFiber } from "./hooks";
-import { startProfiling, stopProfiling, highlightProfilerNode } from "./profiler";
+import { startProfiling, stopProfiling, highlightProfilerNode, inspectProfilerNodeHooks } from "./profiler";
 
 // Expose the inspection function globally
 (window as unknown as Record<string, unknown>).__REACT_DEV_TOOLKIT_INSPECT_HOOKS__ = inspectHooksOfFiber;
+(window as unknown as Record<string, unknown>).__REACT_DEV_TOOLKIT_INSPECT_PROFILER_HOOKS__ = inspectProfilerNodeHooks;
 
 window.addEventListener("message", (event) => {
   if (event.source !== window) return;
