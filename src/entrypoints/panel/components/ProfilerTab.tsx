@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Square, Flame, Trash2, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Play, Square, Flame, Plus, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { ProfileSessionMeta } from "../utils/profilerDb";
 import { Tooltip } from "./Tooltip";
@@ -93,15 +93,15 @@ function ProfilerToolbar({
   onDeleteSession: (id: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-700">
+    <div className="flex items-center border-b border-gray-700 shrink-0">
       {status === "recording" ? (
         <Tooltip content="Stop profiling">
           <button
             type="button"
             onClick={onStop}
-            className="p-1 rounded hover:bg-gray-700 text-red-400 cursor-pointer"
+            className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 text-red-400 hover:bg-red-500/10"
           >
-            <Square size={14} fill="currentColor" />
+            <Square size={10} fill="currentColor" />
           </button>
         </Tooltip>
       ) : (
@@ -109,21 +109,21 @@ function ProfilerToolbar({
           <button
             type="button"
             onClick={onStart}
-            className="p-1 rounded hover:bg-gray-700 text-blue-400 cursor-pointer"
+            className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 text-blue-400 hover:bg-blue-500/10"
           >
-            <Play size={14} fill="currentColor" />
+            <Play size={12} fill="currentColor" />
           </button>
         </Tooltip>
       )}
 
       {status === "recorded" && (
-        <Tooltip content="Clear profiling data">
+        <Tooltip content="Start new profiling">
           <button
             type="button"
             onClick={onClear}
-            className="p-1 rounded hover:bg-gray-700 text-gray-400 cursor-pointer"
+            className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 text-gray-500 hover:text-gray-300"
           >
-            <Trash2 size={14} />
+            <Plus size={14} />
           </button>
         </Tooltip>
       )}
@@ -133,7 +133,7 @@ function ProfilerToolbar({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1 px-2 py-0.5 ml-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 rounded cursor-pointer outline-none"
+              className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-r border-gray-700 text-gray-400 hover:text-gray-200 hover:bg-gray-700/50 flex items-center gap-1"
             >
               <span className="truncate max-w-[200px]">
                 {activeSessionId

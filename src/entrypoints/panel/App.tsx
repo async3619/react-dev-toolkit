@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { TabBar } from "./components/TabBar";
 import { ComponentsTab } from "./components/ComponentsTab";
 import { ProfilerTab } from "./components/ProfilerTab";
+import { useProfilerStore } from "./stores/profilerStore";
 
 const TABS = ["Components", "Profiler"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("Components");
+
+  // Load profiler sessions once at app start
+  useEffect(() => {
+    browser.devtools.inspectedWindow.eval("location.origin", (result) => {
+      const domain = (result as unknown as string) || "unknown";
+      useProfilerStore.getState().init(domain);
+    });
+  }, []);
 
   return (
     <TooltipPrimitive.Provider delayDuration={300}>
