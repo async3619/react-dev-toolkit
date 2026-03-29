@@ -272,9 +272,9 @@ export function getBarColorBlended(
   blend: number,
   hover: boolean,
 ): string {
-  const colorH = 30 - intensity * 30;
-  const colorS = 60 + intensity * 30;
-  const colorL = (hover ? 45 : 35) + intensity * 10;
+  const colorH = 45 - intensity * 20;
+  const colorS = 50 + intensity * 20;
+  const colorL = (hover ? 48 : 40) + intensity * 5;
 
   const grayH = 220;
   const grayS = 10;

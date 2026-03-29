@@ -694,16 +694,19 @@ export function inspectHooksOfFiber(nodeId: number): HookInfo[] | null {
   catch (e) { console.error('[RDT] inspectHooksOfFiber error:', e); return null; }
 }
 
-/** Inspect hooks of a fiber directly (used by profiler for arbitrary fibers) */
-export function inspectHooksOfFiberDirect(fiber: FiberNode): HookInfo[] | null {
+/**
+ * Inspect hooks of a fiber directly.
+ * When fixToCurrent is true (default), navigates to the current fiber via alternate.
+ * When false, uses the fiber as-is (needed for inspecting the previous fiber during profiling).
+ */
+export function inspectHooksOfFiberDirect(fiber: FiberNode, fixToCurrent = true): HookInfo[] | null {
   try {
-    // Get the current version of the fiber (our reference might be the alternate)
-    let current = fiber;
-    if (current.alternate && current.alternate.alternate === current) {
-      current = current.alternate;
+    let target = fiber;
+    if (fixToCurrent && target.alternate && target.alternate.alternate === target) {
+      target = target.alternate;
     }
 
-    const type = current.type;
+    const type = target.type;
     let componentFn: ((...args: unknown[]) => unknown) | null = null;
 
     if (typeof type === "function") {
@@ -722,16 +725,16 @@ export function inspectHooksOfFiberDirect(fiber: FiberNode): HookInfo[] | null {
 
     const dispatcherRef = getDispatcherRef();
     if (!dispatcherRef) {
-      return buildFallbackHookList(current);
+      return buildFallbackHookList(target);
     }
 
     getPrimitiveStackCache();
 
-    _hookNodes = current.memoizedState;
+    _hookNodes = target.memoizedState;
     _hookIndex = 0;
     _hookLog = [];
 
-    const contextMap = setupContexts(current);
+    const contextMap = setupContexts(target);
     const prevDispatcher = dispatcherRef.get();
 
     let rootFrames: ErrorStackParser.StackFrame[] = [];
@@ -747,7 +750,7 @@ export function inspectHooksOfFiberDirect(fiber: FiberNode): HookInfo[] | null {
       }
 
       try {
-        componentFn(current.memoizedProps ?? {});
+        componentFn(target.memoizedProps ?? {});
       } catch {
         // Component may throw
       }
@@ -757,7 +760,7 @@ export function inspectHooksOfFiberDirect(fiber: FiberNode): HookInfo[] | null {
     }
 
     if (_hookLog.length === 0) {
-      return buildFallbackHookList(current);
+      return buildFallbackHookList(target);
     }
 
     return buildHookTree(_hookLog, rootFrames);

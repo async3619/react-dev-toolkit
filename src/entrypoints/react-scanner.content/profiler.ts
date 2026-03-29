@@ -166,16 +166,16 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     }
   }
 
-  // Hook changes — walk linked list using _debugHookTypes for accurate classification
+  // Hook changes — compare raw memoizedState values, map to hook tree IDs
   if (alt.memoizedState !== fiber.memoizedState) {
-    const hookResult = detectHookChanges(
+    const indices = detectHookChanges(
       alt.memoizedState,
       fiber.memoizedState,
       fiber._debugHookTypes,
     );
-    if (hookResult.ids.length > 0) {
-      changedHookIndices = hookResult.ids;
-      reasons.push(`Hook(s) ${hookResult.ids.join(", ")} changed`);
+    if (indices.length > 0) {
+      changedHookIndices = indices;
+      reasons.push(`Hook(s) ${indices.join(", ")} changed`);
     }
   }
 
@@ -205,6 +205,10 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
   return { reasons, changedHookIndices };
 }
 
+// --- Hook change detection ---
+// Uses raw memoizedState comparison (avoids serialization false positives)
+// and maps to hook tree IDs via _debugHookTypes
+
 interface HookNode {
   memoizedState: unknown;
   next: HookNode | null;
@@ -219,41 +223,92 @@ function isHookNode(v: unknown): v is HookNode {
   );
 }
 
-/** Noise hooks whose memoizedState changes are internal / not actionable */
-const SKIP_HOOK_TYPES = new Set([
-  "useEffect",
-  "useLayoutEffect",
-  "useInsertionEffect",
-  "useImperativeHandle",
-  "useDebugValue",
+/**
+ * Hooks that can CAUSE a re-render (matching React DevTools' isStateEditable).
+ * Only useState and useReducer — their memoizedState is the raw state value,
+ * so reference comparison works reliably.
+ * Other hooks (useMemo, useEffect, useTransition, etc.) change as a RESULT
+ * of re-rendering and should not be reported as causes.
+ */
+const STATEFUL_HOOK_TYPES = new Set([
+  "useState",
+  "useReducer",
+  "useSyncExternalStore",
 ]);
 
+/** Hooks that don't create memoizedState linked list entries */
+const NO_MEMOIZED_STATE_HOOKS = new Set([
+  "useContext",
+  "useDebugValue",
+  "use",
+]);
+
+/**
+ * Composite hooks that create EXTRA memoizedState nodes internally,
+ * beyond the one tracked by _debugHookTypes.
+ * - useSyncExternalStore: creates 1 extra node (internal mountEffect for subscription)
+ * - useTransition: creates 1 extra node (startTransition function)
+ */
+const EXTRA_HOOK_NODES: Record<string, number> = {
+  useSyncExternalStore: 1,
+  useTransition: 1,
+};
+
+/**
+ * Detect changed hooks by walking raw memoizedState linked lists.
+ * Returns hook tree IDs (1-based, matching buildHookTree's nativeHookID assignment)
+ * so that sidebar highlighting works correctly.
+ */
 function detectHookChanges(
   prevState: unknown,
   nextState: unknown,
   debugHookTypes?: string[] | null,
-): { ids: number[] } {
+): number[] {
   const ids: number[] = [];
+
+  if (!debugHookTypes) {
+    return ids;
+  }
+
   let prev = prevState;
   let next = nextState;
-  let index = 0;
+  // Matches buildHookTree: nativeHookID starts at 1, increments for every
+  // hook EXCEPT Context, DebugValue, and "use" (which get id=null)
+  let treeId = 1;
 
-  while (isHookNode(prev) && isHookNode(next)) {
-    const hookType = debugHookTypes?.[index] ?? null;
+  for (let i = 0; i < debugHookTypes.length; i++) {
+    const hookType = debugHookTypes[i];
 
-    if (prev.memoizedState !== next.memoizedState) {
-      if (!hookType || !SKIP_HOOK_TYPES.has(hookType)) {
-        // 1-based hook ID (matching hook tree ID assignment)
-        ids.push(index + 1);
+    // These hooks don't create memoizedState entries and get no tree ID
+    if (NO_MEMOIZED_STATE_HOOKS.has(hookType)) {
+      continue;
+    }
+
+    if (!isHookNode(prev) || !isHookNode(next)) break;
+
+    // Check stateful hooks for changes using raw reference comparison
+    if (STATEFUL_HOOK_TYPES.has(hookType)) {
+      if (prev.memoizedState !== next.memoizedState) {
+        ids.push(treeId);
       }
     }
 
-    prev = prev.next;
-    next = next.next;
-    index++;
+    treeId++;
+    prev = (prev as HookNode).next;
+    next = (next as HookNode).next;
+
+    // Composite hooks (useSyncExternalStore, useTransition) create extra
+    // internal memoizedState nodes that aren't tracked in _debugHookTypes.
+    // Skip them to keep the linked list aligned.
+    const extra = EXTRA_HOOK_NODES[hookType] ?? 0;
+    for (let j = 0; j < extra; j++) {
+      if (!isHookNode(prev) || !isHookNode(next)) break;
+      prev = (prev as HookNode).next;
+      next = (next as HookNode).next;
+    }
   }
 
-  return { ids };
+  return ids;
 }
 
 /** Inspect hooks of a profiler node by its profiler-assigned nodeId */

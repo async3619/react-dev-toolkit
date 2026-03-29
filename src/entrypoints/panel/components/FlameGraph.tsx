@@ -388,6 +388,7 @@ export const FlameGraph = forwardRef<
       if (
         s &&
         s.depth >= 0 &&
+        bar.depth === s.depth &&
         Math.abs(bar.leftPct - s.anchorLeft) < 0.001 &&
         Math.abs(bar.widthPct - s.anchorWidth) < 0.001
       ) {
