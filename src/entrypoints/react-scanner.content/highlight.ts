@@ -19,9 +19,9 @@ function ensureOverlay() {
   document.documentElement.appendChild(highlightLabel);
 }
 
-export function highlightElement(nodeId: number, nodeName: string) {
+export function highlightElement(nodeId: number, nodeName: string, element?: Element) {
   ensureOverlay();
-  const el = nodeToElementMap.get(nodeId);
+  const el = element ?? nodeToElementMap.get(nodeId);
   if (!el || !highlightOverlay || !highlightLabel) {
     hideHighlight();
     return;

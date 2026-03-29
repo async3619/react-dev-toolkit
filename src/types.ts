@@ -30,7 +30,30 @@ export interface HookInfo {
   source?: HookSource | null;
 }
 
+export interface ProfileCommitData {
+  id: number;
+  duration: number;
+  timestamp: number;
+  roots: ProfileFiberNode[];
+}
+
+export interface ProfileFiberNode {
+  nodeId: number;
+  name: string;
+  hocs?: HocBadge[];
+  selfDuration: number;
+  totalDuration: number;
+  /** Baseline render cost — used for width of non-rendered nodes */
+  baseDuration: number;
+  children: ProfileFiberNode[];
+  didRender: boolean;
+  renderReasons?: string[];
+}
+
 export type MessageType =
   | { type: "SCAN_REACT_TREE" }
   | { type: "REACT_TREE_RESULT"; tree: ComponentNode[] | null; error?: string }
-  | { type: "REACT_NOT_FOUND" };
+  | { type: "REACT_NOT_FOUND" }
+  | { type: "START_PROFILING" }
+  | { type: "STOP_PROFILING" }
+  | { type: "PROFILING_COMMIT"; commit: ProfileCommitData };

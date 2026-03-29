@@ -2,8 +2,9 @@ import { useState } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { TabBar } from "./components/TabBar";
 import { ComponentsTab } from "./components/ComponentsTab";
+import { ProfilerTab } from "./components/ProfilerTab";
 
-const TABS = ["Components"] as const;
+const TABS = ["Components", "Profiler"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
 
         <main className="flex flex-col flex-1 min-h-0">
           {activeTab === "Components" && <ComponentsTab />}
+          {activeTab === "Profiler" && <ProfilerTab />}
         </main>
       </div>
     </TooltipPrimitive.Provider>

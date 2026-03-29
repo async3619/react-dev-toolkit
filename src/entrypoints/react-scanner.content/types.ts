@@ -4,11 +4,16 @@ export interface FiberNode {
   child: FiberNode | null;
   sibling: FiberNode | null;
   return: FiberNode | null;
+  alternate: FiberNode | null;
   memoizedProps: Record<string, unknown>;
   memoizedState: unknown;
   stateNode: unknown;
   dependencies?: { firstContext: unknown } | null;
   _debugSource?: { fileName: string; lineNumber: number; columnNumber?: number };
+  // Profiling fields (available in React dev builds)
+  actualDuration?: number;
+  selfBaseDuration?: number;
+  treeBaseDuration?: number;
 }
 
 export interface SourceLocation {
