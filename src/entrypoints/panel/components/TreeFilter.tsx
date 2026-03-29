@@ -50,8 +50,8 @@ export function TreeFilter({
         className="flex-1 px-3 py-1.5 text-xs bg-transparent border-none focus:outline-none placeholder-gray-500"
       />
       <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <Tooltip content="Filter options">
+        <Tooltip content="Filter options">
+          <DropdownMenu.Trigger asChild>
             <button
               type="button"
               className={`px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 ${
@@ -62,8 +62,8 @@ export function TreeFilter({
             >
               <ListFilter size={14} />
             </button>
-          </Tooltip>
-        </DropdownMenu.Trigger>
+          </DropdownMenu.Trigger>
+        </Tooltip>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
             align="end"
@@ -84,16 +84,16 @@ export function TreeFilter({
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
       <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild>
-          <Tooltip content="Display settings">
+        <Tooltip content="Display settings">
+          <DropdownMenu.Trigger asChild>
             <button
               type="button"
               className="px-2 py-1.5 text-sm shrink-0 cursor-pointer focus:outline-none border-l border-gray-700 text-gray-500 hover:text-gray-300"
             >
               <Settings size={14} />
             </button>
-          </Tooltip>
-        </DropdownMenu.Trigger>
+          </DropdownMenu.Trigger>
+        </Tooltip>
         <DropdownMenu.Portal>
           <DropdownMenu.Content
             align="end"
