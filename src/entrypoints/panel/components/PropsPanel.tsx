@@ -41,11 +41,9 @@ export function PropsPanel({ node, tree, onSelectNode, scrollRef, hooks }: Props
         ) : (
           <div className="space-y-1">
             {entries.map(([key, value]) => (
-              <div key={key} className="flex text-sm gap-2 min-w-0">
-                <span className="text-purple-400 shrink-0">{key}:</span>
-                <div className="min-w-0 flex-1">
-                  <PropValue value={value} />
-                </div>
+              <div key={key} className="text-sm min-w-0">
+                <span className="text-purple-400">{key}: </span>
+                <PropValue value={value} />
               </div>
             ))}
           </div>

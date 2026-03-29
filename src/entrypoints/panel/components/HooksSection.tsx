@@ -72,46 +72,46 @@ function HookEntry({ hook, depth = 0, forceExpand = false, filter = "" }: HookEn
   return (
     <div style={depth > 0 ? { marginLeft: 12 } : undefined}>
       <div
-        className={`group flex items-center gap-1 text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}${hasChildren ? " cursor-pointer" : ""}`}
+        className={`group text-sm min-w-0 rounded px-1 -mx-1${isDirectMatch ? " bg-yellow-500/15" : " hover:bg-gray-800"}${hasChildren ? " cursor-pointer" : ""}`}
         onClick={() => hasChildren && setExpanded(!expanded)}
       >
-        {hasChildren ? (
-          <button
-            type="button"
-            className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none shrink-0 mt-0.5"
-            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-          >
-            {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-        ) : (
-          <span className="w-3 shrink-0" />
-        )}
-        <span className={`${nameColor} shrink-0`}>
-          {hook.name}
-          {hook.id !== null && (
-            <Tooltip content={`Hook ID: ${hook.id}`}>
-              <span className="text-gray-500"> ({hook.id})</span>
-            </Tooltip>
-          )}
-        </span>
-        {showValue && (
-          <>
-            <span className="text-gray-500 shrink-0">:</span>
-            <div className="min-w-0 flex-1">
-              <PropValue value={hook.value} />
-            </div>
-          </>
-        )}
         {hasSource && (
           <Tooltip content={`${hook.source!.fileName}:${hook.source!.lineNumber}`}>
             <button
               type="button"
-              className="ml-auto text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+              className="float-right text-gray-400 hover:text-blue-400 cursor-pointer focus:outline-none opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 ml-1"
               onClick={(e) => { e.stopPropagation(); openHookSource(hook.source!); }}
             >
               <Code size={14} />
             </button>
           </Tooltip>
+        )}
+        <span className="inline-flex items-center gap-1 align-middle">
+          {hasChildren ? (
+            <button
+              type="button"
+              className="text-gray-500 hover:text-gray-300 cursor-pointer focus:outline-none shrink-0"
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+            >
+              {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          ) : (
+            <span className="w-3 shrink-0" />
+          )}
+          <span className={nameColor}>
+            {hook.name}
+            {hook.id !== null && (
+              <Tooltip content={`Hook ID: ${hook.id}`}>
+                <span className="text-gray-500"> ({hook.id})</span>
+              </Tooltip>
+            )}
+          </span>
+        </span>
+        {showValue && (
+          <>
+            <span className="text-gray-500">: </span>
+            <PropValue value={hook.value} />
+          </>
         )}
       </div>
       {isOpen && hasChildren && (
