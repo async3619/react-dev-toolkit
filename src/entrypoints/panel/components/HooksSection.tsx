@@ -42,16 +42,10 @@ function openHookSource(source: { fileName: string; lineNumber: number; columnNu
   if (getResources && openResource) {
     getResources((resources) => {
       const match = resources.find((r) => r.url.includes(shortPath));
-      console.log('[RDT] openHookSource shortPath:', shortPath, 'match:', match?.url, 'total resources:', resources.length);
-      if (!match) {
-        // Log a few resource URLs for debugging
-        console.log('[RDT] sample resources:', resources.slice(0, 10).map((r) => r.url));
-      }
       const url = match?.url ?? source.fileName;
       openResource(url, source.lineNumber - 1);
     });
   } else {
-    console.log('[RDT] no getResources/openResource API available');
     openInEditor(source.fileName, source.lineNumber, source.columnNumber);
   }
 }

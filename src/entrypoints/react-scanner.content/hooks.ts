@@ -623,7 +623,7 @@ function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
 
 function _inspectHooksOfFiberImpl(nodeId: number): HookInfo[] | null {
   const fiber = nodeToFiberMap.get(nodeId);
-  if (!fiber) { console.log('[RDT] no fiber for', nodeId); return null; }
+  if (!fiber) return null;
 
   const type = fiber.type;
   let componentFn: ((...args: unknown[]) => unknown) | null = null;

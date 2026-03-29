@@ -284,20 +284,18 @@ function RecordedView({
   );
 
   const sidebar = (
-    <div className="relative h-full">
-      <CommitSidebar
-        commit={selectedCommit}
-        commitIndex={selectedCommitIndex}
-        totalCommits={commits.length}
-        onFocusComponent={onFocusComponent}
-        onHighlight={onHighlight}
-        onHideHighlight={onHideHighlight}
-      />
-      {selectedBar && (
-        <div className="absolute inset-0 bg-gray-900 overflow-auto">
-          <BarDetailSidebar bar={selectedBar} />
-        </div>
-      )}
+    <div className="h-full">
+      <div style={{ display: selectedBar ? "none" : undefined }}>
+        <CommitSidebar
+          commit={selectedCommit}
+          commitIndex={selectedCommitIndex}
+          totalCommits={commits.length}
+          onFocusComponent={onFocusComponent}
+          onHighlight={onHighlight}
+          onHideHighlight={onHideHighlight}
+        />
+      </div>
+      {selectedBar && <BarDetailSidebar bar={selectedBar} />}
     </div>
   );
 
