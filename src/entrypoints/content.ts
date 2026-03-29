@@ -9,7 +9,8 @@ export default defineContentScript({
       if (
         data?.type === 'REACT_TREE_RESULT' ||
         data?.type === 'REACT_NOT_FOUND' ||
-        data?.type === 'INSPECT_SELECT'
+        data?.type === 'INSPECT_SELECT' ||
+        data?.type === 'PROFILING_COMMIT'
       ) {
         browser.runtime.sendMessage(data)
       }
@@ -22,7 +23,9 @@ export default defineContentScript({
         message?.type === 'STOP_WATCHING' ||
         message?.type === 'SCAN_REACT_TREE' ||
         message?.type === 'HIGHLIGHT_NODE' ||
-        message?.type === 'HIDE_HIGHLIGHT'
+        message?.type === 'HIDE_HIGHLIGHT' ||
+        message?.type === 'START_PROFILING' ||
+        message?.type === 'STOP_PROFILING'
       ) {
         window.postMessage(message, '*')
       }

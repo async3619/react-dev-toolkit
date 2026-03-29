@@ -623,7 +623,7 @@ function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
 
 function _inspectHooksOfFiberImpl(nodeId: number): HookInfo[] | null {
   const fiber = nodeToFiberMap.get(nodeId);
-  if (!fiber) { console.log('[RDT] no fiber for', nodeId); return null; }
+  if (!fiber) return null;
 
   const type = fiber.type;
   let componentFn: ((...args: unknown[]) => unknown) | null = null;
@@ -692,4 +692,80 @@ function _inspectHooksOfFiberImpl(nodeId: number): HookInfo[] | null {
 export function inspectHooksOfFiber(nodeId: number): HookInfo[] | null {
   try { return _inspectHooksOfFiberImpl(nodeId); }
   catch (e) { console.error('[RDT] inspectHooksOfFiber error:', e); return null; }
+}
+
+/**
+ * Inspect hooks of a fiber directly.
+ * When fixToCurrent is true (default), navigates to the current fiber via alternate.
+ * When false, uses the fiber as-is (needed for inspecting the previous fiber during profiling).
+ */
+export function inspectHooksOfFiberDirect(fiber: FiberNode, fixToCurrent = true): HookInfo[] | null {
+  try {
+    let target = fiber;
+    if (fixToCurrent && target.alternate && target.alternate.alternate === target) {
+      target = target.alternate;
+    }
+
+    const type = target.type;
+    let componentFn: ((...args: unknown[]) => unknown) | null = null;
+
+    if (typeof type === "function") {
+      componentFn = type as (...args: unknown[]) => unknown;
+    } else if (typeof type === "object" && type !== null) {
+      const obj = type as { render?: unknown; type?: unknown };
+      if (typeof obj.render === "function") {
+        componentFn = obj.render as (...args: unknown[]) => unknown;
+      } else if (typeof obj.type === "function") {
+        componentFn = obj.type as (...args: unknown[]) => unknown;
+      }
+    }
+
+    if (componentFn && componentFn.prototype?.isReactComponent) return null;
+    if (!componentFn) return null;
+
+    const dispatcherRef = getDispatcherRef();
+    if (!dispatcherRef) {
+      return buildFallbackHookList(target);
+    }
+
+    getPrimitiveStackCache();
+
+    _hookNodes = target.memoizedState;
+    _hookIndex = 0;
+    _hookLog = [];
+
+    const contextMap = setupContexts(target);
+    const prevDispatcher = dispatcherRef.get();
+
+    let rootFrames: ErrorStackParser.StackFrame[] = [];
+
+    try {
+      dispatcherRef.set(_safeDispatcher);
+
+      const ancestorStackError = new Error();
+      try {
+        rootFrames = ErrorStackParser.parse(ancestorStackError);
+      } catch {
+        rootFrames = [];
+      }
+
+      try {
+        componentFn(target.memoizedProps ?? {});
+      } catch {
+        // Component may throw
+      }
+    } finally {
+      dispatcherRef.set(prevDispatcher);
+      restoreContexts(contextMap);
+    }
+
+    if (_hookLog.length === 0) {
+      return buildFallbackHookList(target);
+    }
+
+    return buildHookTree(_hookLog, rootFrames);
+  } catch (e) {
+    console.error('[RDT] inspectHooksOfFiberDirect error:', e);
+    return null;
+  }
 }

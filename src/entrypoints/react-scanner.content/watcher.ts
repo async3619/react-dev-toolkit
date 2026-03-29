@@ -1,8 +1,9 @@
-import type { ComponentNode, HookType } from "./types";
+import type { ComponentNode, HookType, FiberNode } from "./types";
 import { resetNodeMaps } from "./state";
 import { loadSourceMaps, fnSourceCache } from "./source-map";
 import { walkFiber, findReactRoots } from "./fiber";
 import { hideHighlight, OVERLAY_ATTR } from "./highlight";
+import { onCommitForProfiling } from "./profiler";
 
 // Buffer to store the latest scan result before the panel connects
 let bufferedMessage: Record<string, unknown> | null = null;
@@ -53,6 +54,7 @@ export function hookIntoReact() {
   hook.onCommitFiberRoot = (...args: unknown[]) => {
     originalCommit?.apply(hook, args);
     debouncedScan();
+    onCommitForProfiling(args[1] as { current?: FiberNode });
   };
 
   // Patch inject to catch future renderers
@@ -65,6 +67,7 @@ export function hookIntoReact() {
       hook.onCommitFiberRoot = (...args: unknown[]) => {
         currentCommit.apply(hook, args);
         debouncedScan();
+        onCommitForProfiling(args[1] as { current?: FiberNode });
       };
     }
     return id;
