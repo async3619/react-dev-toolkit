@@ -29,6 +29,7 @@ export type HocBadge = "memo" | "forwardRef" | "lazy";
 export interface ComponentNode {
   id: number;
   name: string;
+  typeId: number;
   hocs?: HocBadge[];
   props: Record<string, unknown>;
   children: ComponentNode[];

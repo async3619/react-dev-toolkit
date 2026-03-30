@@ -5,6 +5,7 @@ import {
   nodeToFunctionMap,
   nodeToFiberMap,
   nextNodeId,
+  getTypeId,
 } from "./state";
 import { getComponentSource } from "./component-source";
 import { serializeProps } from "./serialize";
@@ -118,6 +119,7 @@ export function walkFiber(fiber: FiberNode, out: ComponentNode[]): void {
     out.push({
       id,
       name: result.name,
+      typeId: getTypeId(fiber.type),
       hocs: result.hocs.length > 0 ? result.hocs : undefined,
       props: serializeProps(fiber.memoizedProps || {}),
       children,

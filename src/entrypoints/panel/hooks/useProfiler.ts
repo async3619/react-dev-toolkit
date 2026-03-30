@@ -46,9 +46,11 @@ export function useProfiler() {
     store.clearCommits();
     store.setActiveSessionId(null);
     autoSavedRef.current = false;
-    const anchor = useProfilerStore.getState().anchorComponent.trim();
+    const { anchorTypeId, anchorComponent } = useProfilerStore.getState();
+    const anchor = anchorComponent.trim();
     portRef.current?.postMessage({
       type: "START_PROFILING",
+      ...(anchorTypeId != null ? { anchorTypeId } : {}),
       ...(anchor ? { anchorComponent: anchor } : {}),
     });
   }, [store]);
@@ -77,6 +79,7 @@ export function useProfiler() {
     sessions: store.sessions,
     activeSessionId: store.activeSessionId,
     anchorComponent: store.anchorComponent,
+    anchorTypeId: store.anchorTypeId,
     setAnchorComponent: store.setAnchorComponent,
     componentNames,
     startProfiling,

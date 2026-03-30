@@ -3,11 +3,13 @@ import type { ProfileCommitData, ProfileFiberNode, HookInfo } from "@/types";
 import { getFiberName, findNearestDomElement } from "./fiber";
 import { highlightElement, hideHighlight } from "./highlight";
 import { inspectHooksOfFiberDirect } from "./hooks";
+import { getTypeByTypeId } from "./state";
 
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
 let profiling = false;
-let anchorComponent: string | undefined;
+let anchorType: unknown | undefined;
+let anchorComponentName: string | undefined;
 let commitIdCounter = 0;
 let profilerNodeIdCounter = 0;
 
@@ -30,9 +32,10 @@ export function highlightProfilerNode(nodeId: number, nodeName: string) {
   highlightElement(nodeId, nodeName, el);
 }
 
-export function startProfiling(anchor?: string) {
+export function startProfiling(anchorTypeId?: number, anchorName?: string) {
   profiling = true;
-  anchorComponent = anchor?.trim() || undefined;
+  anchorType = anchorTypeId != null ? getTypeByTypeId(anchorTypeId) : undefined;
+  anchorComponentName = anchorName?.trim() || undefined;
   commitIdCounter = 0;
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
@@ -53,8 +56,12 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
 
   const roots: ProfileFiberNode[] = [];
 
-  if (anchorComponent) {
-    const anchorFibers = findAnchorFibers(fiberRoot.current, anchorComponent);
+  const hasAnchor = anchorType !== undefined || anchorComponentName !== undefined;
+
+  if (hasAnchor) {
+    const anchorFibers = anchorType !== undefined
+      ? findAnchorFibersByType(fiberRoot.current, anchorType)
+      : findAnchorFibersByName(fiberRoot.current, anchorComponentName!);
     for (const fiber of anchorFibers) {
       walkFiberForProfiling(fiber, roots);
     }
@@ -65,7 +72,7 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   if (roots.length === 0) return;
 
   // When anchored, only record commits where at least one anchor instance actually rendered
-  if (anchorComponent && !roots.some((r) => r.didRender)) return;
+  if (hasAnchor && !roots.some((r) => r.didRender)) return;
 
   let duration = 0;
   for (const root of roots) {
@@ -82,13 +89,35 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   window.postMessage({ type: "PROFILING_COMMIT", commit }, "*");
 }
 
-function findAnchorFibers(fiber: FiberNode, name: string): FiberNode[] {
+function findAnchorFibersByType(fiber: FiberNode, targetType: unknown): FiberNode[] {
   const results: FiberNode[] = [];
-  collectAnchorFibers(fiber, name, results);
+  collectAnchorFibersByType(fiber, targetType, results);
   return results;
 }
 
-function collectAnchorFibers(
+function collectAnchorFibersByType(
+  fiber: FiberNode,
+  targetType: unknown,
+  out: FiberNode[],
+): void {
+  if (componentTags.has(fiber.tag) && fiber.type === targetType) {
+    out.push(fiber);
+    return;
+  }
+  let child = fiber.child;
+  while (child) {
+    collectAnchorFibersByType(child, targetType, out);
+    child = child.sibling;
+  }
+}
+
+function findAnchorFibersByName(fiber: FiberNode, name: string): FiberNode[] {
+  const results: FiberNode[] = [];
+  collectAnchorFibersByName(fiber, name, results);
+  return results;
+}
+
+function collectAnchorFibersByName(
   fiber: FiberNode,
   name: string,
   out: FiberNode[],
@@ -97,13 +126,12 @@ function collectAnchorFibers(
     const nameResult = getFiberName(fiber);
     if (nameResult && nameResult.name === name) {
       out.push(fiber);
-      // Don't recurse into children — nested instances are part of this subtree
       return;
     }
   }
   let child = fiber.child;
   while (child) {
-    collectAnchorFibers(child, name, out);
+    collectAnchorFibersByName(child, name, out);
     child = child.sibling;
   }
 }

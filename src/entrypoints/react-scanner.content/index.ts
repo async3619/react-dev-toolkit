@@ -36,7 +36,7 @@ window.addEventListener("message", (event) => {
   } else if (data?.type === "STOP_INSPECT") {
     stopInspecting();
   } else if (data?.type === "START_PROFILING") {
-    startProfiling(data.anchorComponent);
+    startProfiling(data.anchorTypeId, data.anchorComponent);
   } else if (data?.type === "STOP_PROFILING") {
     stopProfiling();
   } else if (data?.type === "HIGHLIGHT_PROFILER_NODE") {
