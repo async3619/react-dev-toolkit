@@ -19,7 +19,7 @@ window.addEventListener("message", (event) => {
   } else if (data?.type === "STOP_WATCHING") {
     stopWatching();
   } else if (data?.type === "SCAN_REACT_TREE") {
-    scanTree();
+    scanTree(true);
   } else if (data?.type === "HIGHLIGHT_NODE") {
     highlightElement(data.nodeId, data.nodeName);
   } else if (data?.type === "HIDE_HIGHLIGHT") {
@@ -36,7 +36,7 @@ window.addEventListener("message", (event) => {
   } else if (data?.type === "STOP_INSPECT") {
     stopInspecting();
   } else if (data?.type === "START_PROFILING") {
-    startProfiling();
+    startProfiling(data.anchorComponent);
   } else if (data?.type === "STOP_PROFILING") {
     stopProfiling();
   } else if (data?.type === "HIGHLIGHT_PROFILER_NODE") {

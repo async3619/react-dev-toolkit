@@ -19,6 +19,8 @@ interface ProfilerState {
   domain: string;
   /** Whether sessions have been loaded from IndexedDB */
   initialized: boolean;
+  /** Component name to anchor profiling to (only profile matching instances) */
+  anchorComponent: string;
 }
 
 interface ProfilerActions {
@@ -28,6 +30,7 @@ interface ProfilerActions {
   addCommit: (commit: ProfileCommitData) => void;
   clearCommits: () => void;
   setActiveSessionId: (id: number | null) => void;
+  setAnchorComponent: (name: string) => void;
   save: () => Promise<void>;
   load: (id: number) => Promise<void>;
   remove: (id: number) => void;
@@ -42,6 +45,7 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
     activeSessionId: null,
     domain: "unknown",
     initialized: false,
+    anchorComponent: "",
 
     init: async (domain: string) => {
       if (get().initialized && get().domain === domain) return;
@@ -57,6 +61,8 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
     clearCommits: () => set({ commits: [] }),
 
     setActiveSessionId: (id) => set({ activeSessionId: id }),
+
+    setAnchorComponent: (name) => set({ anchorComponent: name }),
 
     save: async () => {
       const { commits, domain } = get();
@@ -109,6 +115,6 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
     },
 
     clear: () =>
-      set({ status: "idle", commits: [], activeSessionId: null }),
+      set({ status: "idle", commits: [], activeSessionId: null, anchorComponent: "" }),
   }),
 );

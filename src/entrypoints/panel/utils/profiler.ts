@@ -1,4 +1,27 @@
-import type { HocBadge, ProfileFiberNode } from "@/types";
+import type { HocBadge, ProfileFiberNode, ComponentNode } from "@/types";
+
+// --- Component name collection ---
+
+export interface ComponentNameEntry {
+  name: string;
+  count: number;
+}
+
+export function collectComponentNames(
+  tree: ComponentNode[],
+): ComponentNameEntry[] {
+  const counts = new Map<string, number>();
+  const walk = (nodes: ComponentNode[]) => {
+    for (const node of nodes) {
+      counts.set(node.name, (counts.get(node.name) ?? 0) + 1);
+      walk(node.children);
+    }
+  };
+  walk(tree);
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // --- Constants ---
 
