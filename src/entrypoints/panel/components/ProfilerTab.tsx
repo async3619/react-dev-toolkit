@@ -217,6 +217,7 @@ function IdleView({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [flipUp, setFlipUp] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -243,6 +244,16 @@ function IdleView({
     const item = listRef.current.children[highlightIndex] as HTMLElement | undefined;
     item?.scrollIntoView({ block: "nearest" });
   }, [highlightIndex, open]);
+
+  // Flip dropdown upward if not enough space below
+  useEffect(() => {
+    if (!open || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const dropdownMaxHeight = 192; // max-h-48 = 12rem = 192px
+    const margin = 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setFlipUp(spaceBelow < dropdownMaxHeight + margin);
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
@@ -357,7 +368,9 @@ function IdleView({
             {open && (
               <div
                 ref={listRef}
-                className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded border border-gray-700 bg-gray-800 shadow-xl z-20"
+                className={`absolute left-0 right-0 max-h-48 overflow-y-auto rounded border border-gray-700 bg-gray-800 shadow-xl z-20 ${
+                  flipUp ? "bottom-full mb-1" : "top-full mt-1"
+                }`}
               >
                 {filtered.map((entry, i) => {
                   const isSelected = anchorComponent === entry.name;
