@@ -7,6 +7,53 @@ import { getTypeByTypeId } from "./state";
 
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
+/**
+ * React's PerformedWork flag (bit 0).
+ * See: packages/react-reconciler/src/ReactFiberFlags.js
+ */
+const PerformedWork = 0b1;
+
+/**
+ * Returns fiber flags, handling legacy React versions where the field
+ * was called "effectTag" instead of "flags".
+ * See: react-devtools-shared DevToolsFiberInspection.js
+ */
+function getFiberFlags(fiber: FiberNode): number {
+  if (fiber.flags !== undefined) return fiber.flags;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (fiber as any).effectTag ?? 0;
+}
+
+/**
+ * Determines if a component fiber actually rendered during the current commit.
+ * Ported from React DevTools' didFiberRender() in DevToolsFiberChangeDetection.js.
+ *
+ * Two checks are combined (matching React DevTools' recordProfilingDurations):
+ * 1. prevFiber !== nextFiber — React's double-buffering means bailed-out fibers
+ *    keep the same object reference. If the reference didn't change, no work was done.
+ * 2. PerformedWork flag — React sets bit 0 on fibers whose render function executed.
+ */
+function didFiberRender(fiber: FiberNode): boolean {
+  // First mount — no alternate means the component was just created
+  if (fiber.alternate === null) return true;
+
+  // React reuses the same fiber object when bailing out (no new WIP created).
+  // We track fibers seen in the previous commit; if the same object appears
+  // again, it was bailed out and did NOT re-render.
+  if (previousCommitFibers.has(fiber)) return false;
+
+  // Check the PerformedWork flag for component fibers
+  return (getFiberFlags(fiber) & PerformedWork) === PerformedWork;
+}
+
+/**
+ * WeakSet of fiber references seen in the previous commit.
+ * Used to detect bail-outs: React reuses the exact same fiber object
+ * when a component bails out, so reference equality tells us no work was done.
+ */
+let previousCommitFibers = new WeakSet<FiberNode>();
+let currentCommitFibers = new WeakSet<FiberNode>();
+
 let profiling = false;
 let targetType: unknown | undefined;
 let targetComponentName: string | undefined;
@@ -53,6 +100,11 @@ export function stopProfiling() {
 export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   if (!profiling) return;
   if (!fiberRoot?.current) return;
+
+  // Swap fiber reference sets: previous commit's fibers become the comparison
+  // baseline, and we start collecting the current commit's fibers fresh.
+  previousCommitFibers = currentCommitFibers;
+  currentCommitFibers = new WeakSet<FiberNode>();
 
   const roots: ProfileFiberNode[] = [];
 
@@ -156,15 +208,25 @@ function walkFiberForProfiling(
       const totalDuration = fiber.actualDuration ?? 0;
       const baseDuration = fiber.treeBaseDuration ?? fiber.selfBaseDuration ?? 0;
 
-      // selfDuration = this component's own cost (subtract ALL children's subtree time)
-      const childrenTotalSum = children.reduce(
-        (sum, c) => sum + c.totalDuration,
-        0,
-      );
-      const selfDuration = Math.max(0, totalDuration - childrenTotalSum);
+      // selfDuration = this component's own render cost.
+      // React accumulates actualDuration by adding each direct fiber child's
+      // actualDuration in bubbleProperties, so:
+      //   fiber.actualDuration = ownRenderTime + Σ directFiberChild.actualDuration
+      // We sum ALL direct fiber children (not just component children) to
+      // avoid "leaking" time from intermediate non-component fibers (DOM
+      // elements, Context.Provider, Fragment, etc.) into selfDuration.
+      let directChildrenDuration = 0;
+      let fiberChild = fiber.child;
+      while (fiberChild) {
+        directChildrenDuration += fiberChild.actualDuration ?? 0;
+        fiberChild = fiberChild.sibling;
+      }
+      const selfDuration = Math.max(0, totalDuration - directChildrenDuration);
 
-      // Component rendered itself if it had self-cost
-      const didRender = selfDuration > 0;
+      // Track this fiber for bail-out detection in the next commit
+      currentCommitFibers.add(fiber);
+
+      const didRender = didFiberRender(fiber);
 
       const nodeId = nextProfilerNodeId();
       profilerNodeToFiberMap.set(nodeId, fiber);
