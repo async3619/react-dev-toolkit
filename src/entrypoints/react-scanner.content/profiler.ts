@@ -7,6 +7,7 @@ import { inspectHooksOfFiberDirect } from "./hooks";
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
 let profiling = false;
+let anchorComponent: string | undefined;
 let commitIdCounter = 0;
 let profilerNodeIdCounter = 0;
 
@@ -29,8 +30,9 @@ export function highlightProfilerNode(nodeId: number, nodeName: string) {
   highlightElement(nodeId, nodeName, el);
 }
 
-export function startProfiling() {
+export function startProfiling(anchor?: string) {
   profiling = true;
+  anchorComponent = anchor?.trim() || undefined;
   commitIdCounter = 0;
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
@@ -50,9 +52,20 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   if (!fiberRoot?.current) return;
 
   const roots: ProfileFiberNode[] = [];
-  walkFiberForProfiling(fiberRoot.current, roots);
+
+  if (anchorComponent) {
+    const anchorFibers = findAnchorFibers(fiberRoot.current, anchorComponent);
+    for (const fiber of anchorFibers) {
+      walkFiberForProfiling(fiber, roots);
+    }
+  } else {
+    walkFiberForProfiling(fiberRoot.current, roots);
+  }
 
   if (roots.length === 0) return;
+
+  // When anchored, only record commits where at least one anchor instance actually rendered
+  if (anchorComponent && !roots.some((r) => r.didRender)) return;
 
   let duration = 0;
   for (const root of roots) {
@@ -67,6 +80,32 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   };
 
   window.postMessage({ type: "PROFILING_COMMIT", commit }, "*");
+}
+
+function findAnchorFibers(fiber: FiberNode, name: string): FiberNode[] {
+  const results: FiberNode[] = [];
+  collectAnchorFibers(fiber, name, results);
+  return results;
+}
+
+function collectAnchorFibers(
+  fiber: FiberNode,
+  name: string,
+  out: FiberNode[],
+): void {
+  if (componentTags.has(fiber.tag)) {
+    const nameResult = getFiberName(fiber);
+    if (nameResult && nameResult.name === name) {
+      out.push(fiber);
+      // Don't recurse into children — nested instances are part of this subtree
+      return;
+    }
+  }
+  let child = fiber.child;
+  while (child) {
+    collectAnchorFibers(child, name, out);
+    child = child.sibling;
+  }
 }
 
 function walkFiberForProfiling(

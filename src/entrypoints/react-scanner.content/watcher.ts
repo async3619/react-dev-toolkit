@@ -13,14 +13,14 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let reactHooked = false;
 let watching = false;
 
-export function scanTree() {
+export function scanTree(forcePost = false) {
   resetNodeMaps();
   const fiberRoots = findReactRoots();
 
   if (fiberRoots.length === 0) {
     const msg = { type: "REACT_NOT_FOUND" };
     bufferedMessage = msg;
-    if (watching) {
+    if (watching || forcePost) {
       window.postMessage(msg, "*");
     }
     return;
@@ -33,7 +33,7 @@ export function scanTree() {
 
   const msg = { type: "REACT_TREE_RESULT", tree };
   bufferedMessage = msg;
-  if (watching) {
+  if (watching || forcePost) {
     window.postMessage(msg, "*");
   }
 }

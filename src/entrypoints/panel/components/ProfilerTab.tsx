@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Square, Flame, Plus, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Play, Square, Flame, Plus, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X, Anchor, Check } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { ProfileSessionMeta } from "../utils/profilerDb";
 import { Tooltip } from "./Tooltip";
@@ -8,7 +8,7 @@ import { SidebarSection } from "./SidebarSection";
 import { FlameGraph, type FlameGraphHandle } from "./FlameGraph";
 import { useProfiler } from "../hooks/useProfiler";
 import { useOverlayScrollbar } from "../hooks/useOverlayScrollbar";
-import { type FlatBar, ROW_HEIGHT, flattenTree, collectRendered } from "../utils/profiler";
+import { type FlatBar, type ComponentNameEntry, ROW_HEIGHT, flattenTree, collectRendered } from "../utils/profiler";
 import type { ProfileCommitData, HookInfo } from "@/types";
 
 export function ProfilerTab() {
@@ -17,6 +17,9 @@ export function ProfilerTab() {
     commits,
     sessions,
     activeSessionId,
+    anchorComponent,
+    setAnchorComponent,
+    componentNames,
     startProfiling,
     stopProfiling,
     clear,
@@ -34,6 +37,7 @@ export function ProfilerTab() {
         status={status}
         sessions={sessions}
         activeSessionId={activeSessionId}
+        anchorComponent={anchorComponent}
         onStart={() => {
           setSelectedCommitIndex(0);
           startProfiling();
@@ -50,7 +54,13 @@ export function ProfilerTab() {
         onDeleteSession={remove}
       />
 
-      {status === "idle" && <IdleView />}
+      {status === "idle" && (
+        <IdleView
+          anchorComponent={anchorComponent}
+          onAnchorChange={setAnchorComponent}
+          componentNames={componentNames}
+        />
+      )}
       {status === "recording" && commits.length === 0 && <RecordingView />}
       {status === "recording" && commits.length > 0 && selectedCommit && (
         <RecordedView
@@ -60,7 +70,9 @@ export function ProfilerTab() {
           selectedCommit={selectedCommit}
         />
       )}
-      {status === "recorded" && commits.length === 0 && <NoDataView />}
+      {status === "recorded" && commits.length === 0 && (
+        <NoDataView anchorComponent={anchorComponent} />
+      )}
       {status === "recorded" && selectedCommit && (
         <RecordedView
           commits={commits}
@@ -77,6 +89,7 @@ function ProfilerToolbar({
   status,
   sessions,
   activeSessionId,
+  anchorComponent,
   onStart,
   onStop,
   onClear,
@@ -86,12 +99,15 @@ function ProfilerToolbar({
   status: string;
   sessions: ProfileSessionMeta[];
   activeSessionId: number | null;
+  anchorComponent: string;
   onStart: () => void;
   onStop: () => void;
   onClear: () => void;
   onLoadSession: (id: number) => void;
   onDeleteSession: (id: number) => void;
 }) {
+  const anchor = anchorComponent.trim();
+
   return (
     <div className="flex items-center border-b border-gray-700 shrink-0">
       {status === "recording" ? (
@@ -126,6 +142,13 @@ function ProfilerToolbar({
             <Plus size={14} />
           </button>
         </Tooltip>
+      )}
+
+      {anchor && (
+        <div className="flex items-center gap-1.5 px-2 text-xs text-blue-400 shrink-0 border-r border-gray-700 py-1.5">
+          <Anchor size={12} />
+          <span className="font-mono">{anchor}</span>
+        </div>
       )}
 
       {sessions.length > 0 && status !== "recording" && (
@@ -182,14 +205,210 @@ function ProfilerToolbar({
   );
 }
 
-function IdleView() {
+function IdleView({
+  anchorComponent,
+  onAnchorChange,
+  componentNames,
+}: {
+  anchorComponent: string;
+  onAnchorChange: (name: string) => void;
+  componentNames: ComponentNameEntry[];
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const queryLower = query.toLowerCase();
+  const filtered = useMemo(
+    () =>
+      queryLower
+        ? componentNames.filter((c) =>
+            c.name.toLowerCase().includes(queryLower),
+          )
+        : componentNames,
+    [componentNames, queryLower],
+  );
+
+  // Reset highlight when filtered list changes
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [filtered.length, queryLower]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const item = listRef.current.children[highlightIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex, open]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  const select = useCallback(
+    (name: string) => {
+      onAnchorChange(anchorComponent === name ? "" : name);
+      setQuery("");
+      setOpen(false);
+    },
+    [anchorComponent, onAnchorChange],
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!open) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          setOpen(true);
+          e.preventDefault();
+        }
+        return;
+      }
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setHighlightIndex((i) => Math.min(i + 1, filtered.length - 1));
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setHighlightIndex((i) => Math.max(i - 1, 0));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (filtered[highlightIndex]) select(filtered[highlightIndex].name);
+          break;
+        case "Escape":
+          e.preventDefault();
+          setOpen(false);
+          break;
+      }
+    },
+    [open, filtered, highlightIndex, select],
+  );
+
+  const selectedEntry = anchorComponent
+    ? componentNames.find((c) => c.name === anchorComponent)
+    : null;
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-sm gap-3">
+    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-sm gap-4">
       <Flame size={32} className="text-gray-600" />
       <p>Click the record button to start profiling.</p>
       <p className="text-xs text-gray-600">
         React will collect performance information while recording.
       </p>
+
+      {componentNames.length > 0 && (
+        <div className="w-72 mt-2" ref={containerRef}>
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-gray-400">
+            <Anchor size={12} />
+            <span>Anchor component</span>
+          </div>
+
+          <div className="relative">
+            <Search
+              size={12}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 z-10"
+            />
+            <input
+              ref={inputRef}
+              type="text"
+              value={open ? query : anchorComponent}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (!open) setOpen(true);
+              }}
+              onFocus={() => {
+                setQuery("");
+                setOpen(true);
+              }}
+              onKeyDown={onKeyDown}
+              placeholder="Search components..."
+              className={`w-full pl-6 py-1.5 text-xs bg-gray-800 border rounded text-gray-200 placeholder-gray-600 outline-none ${
+                anchorComponent && !open
+                  ? "border-blue-500/50 pr-7"
+                  : "border-gray-700 pr-2 focus:border-gray-500"
+              }`}
+            />
+            {anchorComponent && !open && (
+              <button
+                type="button"
+                onClick={() => {
+                  onAnchorChange("");
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-700 cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            )}
+
+            {open && (
+              <div
+                ref={listRef}
+                className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded border border-gray-700 bg-gray-800 shadow-xl z-20"
+              >
+                {filtered.map((entry, i) => {
+                  const isSelected = anchorComponent === entry.name;
+                  const isHighlighted = i === highlightIndex;
+                  return (
+                    <button
+                      key={entry.name}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => select(entry.name)}
+                      onMouseEnter={() => setHighlightIndex(i)}
+                      className={`flex items-center w-full px-2 py-1.5 text-xs cursor-pointer ${
+                        isHighlighted ? "bg-gray-700" : ""
+                      } ${isSelected ? "text-blue-400" : "text-gray-300"}`}
+                    >
+                      <span className="w-4 shrink-0">
+                        {isSelected && <Check size={12} />}
+                      </span>
+                      <span className="font-mono truncate">
+                        {queryLower ? (
+                          <HighlightedName name={entry.name} query={queryLower} />
+                        ) : (
+                          entry.name
+                        )}
+                      </span>
+                      <span className="text-gray-500 text-[10px] ml-auto pl-2 shrink-0">
+                        x{entry.count}
+                      </span>
+                    </button>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <div className="px-2 py-3 text-xs text-gray-600 text-center">
+                    No matching components
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {selectedEntry && (
+            <div className="mt-2 px-2 py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 flex items-center gap-1.5">
+              <Anchor size={10} />
+              <span className="font-mono truncate">{selectedEntry.name}</span>
+              <span className="text-blue-400/50 text-[10px] ml-auto">
+                {selectedEntry.count} instance{selectedEntry.count > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -206,13 +425,16 @@ function RecordingView() {
   );
 }
 
-function NoDataView() {
+function NoDataView({ anchorComponent }: { anchorComponent: string }) {
+  const anchor = anchorComponent.trim();
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-sm gap-3">
       <Flame size={32} className="text-gray-600" />
       <p>No profiling data recorded.</p>
       <p className="text-xs text-gray-600">
-        The app did not re-render during the recording session.
+        {anchor
+          ? `No instances of "${anchor}" re-rendered during the recording session.`
+          : "The app did not re-render during the recording session."}
       </p>
     </div>
   );
