@@ -8,42 +8,28 @@ import { getTypeByTypeId } from "./state";
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
 /**
- * React's PerformedWork flag (bit 0).
- * See: packages/react-reconciler/src/ReactFiberFlags.js
- */
-const PerformedWork = 0b1;
-
-/**
- * Returns fiber flags, handling legacy React versions where the field
- * was called "effectTag" instead of "flags".
- * See: react-devtools-shared DevToolsFiberInspection.js
- */
-function getFiberFlags(fiber: FiberNode): number {
-  if (fiber.flags !== undefined) return fiber.flags;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (fiber as any).effectTag ?? 0;
-}
-
-/**
  * Determines if a component fiber actually rendered during the current commit.
- * Ported from React DevTools' didFiberRender() in DevToolsFiberChangeDetection.js.
  *
- * Two checks are combined (matching React DevTools' recordProfilingDurations):
- * 1. prevFiber !== nextFiber — React's double-buffering means bailed-out fibers
- *    keep the same object reference. If the reference didn't change, no work was done.
- * 2. PerformedWork flag — React sets bit 0 on fibers whose render function executed.
+ * Uses React's double-buffering invariant: when a component bails out, React
+ * reuses the exact same fiber object (no new work-in-progress created). When a
+ * component renders, React creates/reuses a WIP from the alternate, so the
+ * current fiber is a different object than the one from the previous commit.
+ *
+ * We track fiber references across commits via WeakSet. If the same object
+ * appears in consecutive commits, the component bailed out and did NOT render.
+ * If a new object appears, React performed work on it — the component rendered.
  */
 function didFiberRender(fiber: FiberNode): boolean {
   // First mount — no alternate means the component was just created
   if (fiber.alternate === null) return true;
 
   // React reuses the same fiber object when bailing out (no new WIP created).
-  // We track fibers seen in the previous commit; if the same object appears
-  // again, it was bailed out and did NOT re-render.
+  // If this exact object was seen in the previous commit, it's a bail-out.
   if (previousCommitFibers.has(fiber)) return false;
 
-  // Check the PerformedWork flag for component fibers
-  return (getFiberFlags(fiber) & PerformedWork) === PerformedWork;
+  // Fiber reference changed between commits — React created a new WIP,
+  // which means the component's render function was executed.
+  return true;
 }
 
 /**
@@ -87,6 +73,8 @@ export function startProfiling(targetTypeId?: number, targetName?: string) {
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
   profilerNodeToFiberMap.clear();
+  previousCommitFibers = new WeakSet<FiberNode>();
+  currentCommitFibers = new WeakSet<FiberNode>();
 }
 
 export function stopProfiling() {

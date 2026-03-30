@@ -10,8 +10,6 @@ export interface FiberNode {
   stateNode: unknown;
   dependencies?: { firstContext: unknown } | null;
   _debugSource?: { fileName: string; lineNumber: number; columnNumber?: number };
-  // Fiber flags — used to check PerformedWork (bit 0)
-  flags?: number;
   // Profiling fields (available in React dev builds)
   actualDuration?: number;
   selfBaseDuration?: number;
