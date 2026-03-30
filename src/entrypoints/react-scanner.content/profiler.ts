@@ -383,6 +383,23 @@ function serializePropValue(value: unknown): string {
   }
 }
 
+/**
+ * Walk up fiber.return to find the nearest ancestor component that actually
+ * rendered in this commit (i.e. its fiber reference changed). Returns its
+ * display name, or null if none found.
+ */
+function findRenderedAncestorName(fiber: FiberNode): string | null {
+  let parent = fiber.return;
+  while (parent) {
+    if (componentTags.has(parent.tag) && !previousCommitFibers.has(parent)) {
+      const nameResult = getFiberName(parent);
+      if (nameResult) return nameResult.name;
+    }
+    parent = parent.return;
+  }
+  return null;
+}
+
 function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[]; changedProps?: ChangedProp[]; changedContexts?: ChangedContext[] } {
   const reasons: string[] = [];
   let changedHookIndices: number[] | undefined;
@@ -476,7 +493,12 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
   }
 
   if (reasons.length === 0) {
-    reasons.push("Parent re-rendered");
+    // Walk up the fiber tree to find the nearest ancestor component that
+    // actually rendered, so the user knows exactly who triggered this render.
+    const parentName = findRenderedAncestorName(fiber);
+    reasons.push(parentName
+      ? `Parent re-rendered: ${parentName}`
+      : "Parent re-rendered");
   }
 
   return { reasons, changedHookIndices, changedProps, changedContexts };
