@@ -385,15 +385,23 @@ function serializePropValue(value: unknown): string {
 
 /**
  * Walk up fiber.return to find the nearest ancestor component that actually
- * rendered in this commit (i.e. its fiber reference changed). Returns its
- * display name, or null if none found.
+ * rendered in this commit. A fiber reference change alone is not sufficient —
+ * React creates WIP fibers for intermediate nodes during reconciliation
+ * without executing their render functions. We verify by checking for
+ * observable changes in memoizedProps or memoizedState.
  */
 function findRenderedAncestorName(fiber: FiberNode): string | null {
   let parent = fiber.return;
   while (parent) {
-    if (componentTags.has(parent.tag) && !previousCommitFibers.has(parent)) {
-      const nameResult = getFiberName(parent);
-      if (nameResult) return nameResult.name;
+    if (componentTags.has(parent.tag)) {
+      const alt = parent.alternate;
+      const didParentRender = alt === null
+        || alt.memoizedProps !== parent.memoizedProps
+        || alt.memoizedState !== parent.memoizedState;
+      if (didParentRender) {
+        const nameResult = getFiberName(parent);
+        if (nameResult) return nameResult.name;
+      }
     }
     parent = parent.return;
   }
