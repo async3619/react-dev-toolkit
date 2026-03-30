@@ -249,8 +249,8 @@ function RecordedView({
     setSelectedBar(null);
   }, [selectedCommit]);
 
-  const onFocusComponent = useCallback((name: string) => {
-    flameGraphRef.current?.zoomToBar(name);
+  const onFocusComponent = useCallback((nodeId: number) => {
+    flameGraphRef.current?.zoomToBar(nodeId);
   }, []);
 
   const onHighlight = useCallback((nodeId: number, name: string) => {
@@ -491,7 +491,7 @@ function CommitSidebar({
   commit: ProfileCommitData;
   commitIndex: number;
   totalCommits: number;
-  onFocusComponent: (name: string) => void;
+  onFocusComponent: (nodeId: number) => void;
   onHighlight: (nodeId: number, name: string) => void;
   onHideHighlight: () => void;
 }) {
@@ -602,7 +602,7 @@ function CommitSidebar({
               <button
                 type="button"
                 key={`${item.name}-${i}`}
-                onClick={() => onFocusComponent(item.name)}
+                onClick={() => onFocusComponent(item.nodeId)}
                 onMouseEnter={() => onHighlight(item.nodeId, item.name)}
                 onMouseLeave={onHideHighlight}
                 className="flex items-center justify-between text-xs py-0.5 w-full cursor-pointer rounded hover:bg-gray-700/50 px-0.5"

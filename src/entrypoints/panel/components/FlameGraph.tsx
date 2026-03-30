@@ -163,7 +163,7 @@ function hideHighlightOnPage() {
 // --- FlameGraph component ---
 
 export interface FlameGraphHandle {
-  zoomToBar: (name: string) => void;
+  zoomToBar: (nodeId: number) => void;
 }
 
 export const FlameGraph = forwardRef<
@@ -421,8 +421,8 @@ export const FlameGraph = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      zoomToBar(name: string) {
-        const bar = bars.find((b) => b.name === name);
+      zoomToBar(nodeId: number) {
+        const bar = bars.find((b) => b.nodeId === nodeId);
         if (!bar) return;
 
         onBarSelectRef.current?.(bar);
@@ -439,13 +439,11 @@ export const FlameGraph = forwardRef<
         };
 
         // Scroll the bar into view
-        const scrollParent = containerRef.current?.parentElement;
-        if (scrollParent) {
+        const el = containerRef.current?.closest(
+          "[data-overlayscrollbars-viewport]",
+        ) as HTMLElement | null;
+        if (el) {
           const targetTop = bar.depth * ROW_HEIGHT;
-          const viewport = scrollParent.querySelector(
-            "[data-overlayscrollbars-viewport]",
-          ) as HTMLElement | null;
-          const el = viewport ?? scrollParent;
           const viewH = el.clientHeight;
           if (targetTop < el.scrollTop || targetTop + ROW_HEIGHT > el.scrollTop + viewH) {
             el.scrollTop = Math.max(0, targetTop - viewH / 3);
