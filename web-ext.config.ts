@@ -7,6 +7,6 @@ const chromeDataDir = resolve(homedir(), '.wxt/chrome-data');
 const startUrls = process.env.REACT_DEV_TOOLKIT_START_URLS?.split(',');
 
 export default defineWebExtConfig({
-  chromiumArgs: [`--user-data-dir=${chromeDataDir}`],
+  chromiumArgs: [`--user-data-dir=${chromeDataDir}`, '--auto-open-devtools-for-tabs'],
   ...(startUrls && { startUrls }),
 });
