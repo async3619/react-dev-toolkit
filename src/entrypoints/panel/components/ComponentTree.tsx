@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import type { ComponentNode, HookInfo } from '@/types'
+import type { ComponentNode } from '@/types'
 import { useOverlayScrollbar } from '../hooks/useOverlayScrollbar'
-import { usePersistedState } from '../hooks/usePersistedState'
-import { useTreeNavigation } from '../hooks/useTreeNavigation'
 import { useVirtualScroll } from '../hooks/useVirtualScroll'
+import { useComponentTreeStore } from '../stores/componentTreeStore'
+import { useComponentsTab } from '../hooks/useComponentsTab'
 import { estimateMaxWidth } from '../utils/tree'
 import { PropsPanel } from './PropsPanel'
 import { ResizablePanel } from './ResizablePanel'
@@ -11,53 +11,41 @@ import { TreeFilter } from './TreeFilter'
 import { ClosingTagNode } from './ClosingTagNode'
 import { TreeNode } from './TreeNode'
 
-interface ComponentTreeProps {
-  tree: ComponentNode[]
-  onHighlight: (nodeId: number, nodeName: string) => void
-  onHideHighlight: () => void
-  inspecting: boolean
-  inspectedNodeId: number | null
-  onStartInspect: () => void
-  onStopInspect: () => void
-  onConsumeInspectedNodeId: () => number | null
-  hooks: HookInfo[] | null
-  onInspectHooks: (nodeId: number) => void
-}
-
-export function ComponentTree({
-  tree,
-  onHighlight,
-  onHideHighlight,
-  inspecting,
-  inspectedNodeId,
-  onStartInspect,
-  onStopInspect,
-  onConsumeInspectedNodeId,
-  hooks,
-  onInspectHooks,
-}: ComponentTreeProps) {
+export function ComponentTree() {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewportRef = useOverlayScrollbar(hostRef)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
-  const [firstPartyOnly, setFirstPartyOnly] = usePersistedState('rdt:firstPartyOnly', false)
-  const [showProps, setShowProps] = usePersistedState('rdt:showProps', true)
-  const [showBadges, setShowBadges] = usePersistedState('rdt:showBadges', true)
 
+  // Global store: page interaction
+  const highlightNode = useComponentTreeStore((s) => s.highlightNode)
+  const hideHighlight = useComponentTreeStore((s) => s.hideHighlight)
+  const inspecting = useComponentTreeStore((s) => s.inspecting)
+  const startInspect = useComponentTreeStore((s) => s.startInspect)
+  const stopInspect = useComponentTreeStore((s) => s.stopInspect)
+
+  // Local tab state
   const {
+    tree,
     filter,
     setFilter,
     filteredTree,
     flat,
     expandedIds,
     selectedId,
+    setSelectedId,
     selectedIndex,
     selectedNode,
-    select,
-    selectById,
     toggleExpand,
     collapseWithChildren,
     handleKeyDown,
-  } = useTreeNavigation(tree, firstPartyOnly)
+    hooks,
+    firstPartyOnly,
+    setFirstPartyOnly,
+    showProps,
+    setShowProps,
+    showBadges,
+    setShowBadges,
+  } = useComponentsTab()
 
   const {
     startIndex,
@@ -77,37 +65,22 @@ export function ComponentTree({
     prevSelectedIndexRef.current = selectedIndex
   }, [selectedIndex, flat, scrollToIndex])
 
-  // Inspect hooks when selection changes
-  useEffect(() => {
-    if (selectedId !== null) {
-      onInspectHooks(selectedId)
-    }
-  }, [selectedId, onInspectHooks])
-
-  // When an element is inspected on the page, select it in the tree
-  useEffect(() => {
-    if (inspectedNodeId !== null) {
-      selectById(inspectedNodeId)
-      onConsumeInspectedNodeId()
-    }
-  }, [inspectedNodeId, selectById, onConsumeInspectedNodeId])
-
   const handleSelect = useCallback(
     (node: ComponentNode) => {
-      select(node)
-      onHighlight(node.id, node.name)
+      setSelectedId(node.id)
+      highlightNode(node.id, node.name)
       hostRef.current?.focus()
     },
-    [select, onHighlight],
+    [setSelectedId, highlightNode],
   )
 
   const handleToggleInspect = useCallback(() => {
     if (inspecting) {
-      onStopInspect()
+      stopInspect()
     } else {
-      onStartInspect()
+      startInspect()
     }
-  }, [inspecting, onStartInspect, onStopInspect])
+  }, [inspecting, startInspect, stopInspect])
 
   const contentWidth = useMemo(() => estimateMaxWidth(flat, expandedIds), [flat, expandedIds])
   const visibleItems = flat.slice(startIndex, endIndex)
@@ -155,8 +128,8 @@ export function ComponentTree({
                     depth={item.depth}
                     isSelected={selectedId === item.node.id}
                     onSelect={handleSelect}
-                    onHover={onHighlight}
-                    onHoverEnd={onHideHighlight}
+                    onHover={highlightNode}
+                    onHoverEnd={hideHighlight}
                   />
                 ) : (
                   <TreeNode
@@ -171,8 +144,8 @@ export function ComponentTree({
                     onSelect={handleSelect}
                     onToggle={toggleExpand}
                     onCollapse={(id) => collapseWithChildren(id, filteredTree)}
-                    onHover={onHighlight}
-                    onHoverEnd={onHideHighlight}
+                    onHover={highlightNode}
+                    onHoverEnd={hideHighlight}
                   />
                 ),
               )}

@@ -1,21 +1,12 @@
-import { useComponentTree } from "../hooks/useComponentTree";
+import { useComponentTreeStore } from "../stores/componentTreeStore";
 import { ComponentTree } from "./ComponentTree";
 
 export function ComponentsTab() {
-  const {
-    state,
-    highlightNode,
-    hideHighlight,
-    inspecting,
-    inspectedNodeId,
-    startInspect,
-    stopInspect,
-    consumeInspectedNodeId,
-    hooks,
-    inspectHooks,
-  } = useComponentTree();
+  const status = useComponentTreeStore((s) => s.status);
+  const tree = useComponentTreeStore((s) => s.tree);
+  const error = useComponentTreeStore((s) => s.error);
 
-  if (state.status === "idle") {
+  if (status === "idle") {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
         Detecting React components...
@@ -23,7 +14,7 @@ export function ComponentsTab() {
     );
   }
 
-  if (state.status === "not-found") {
+  if (status === "not-found") {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
         No React application detected on this page.
@@ -31,15 +22,15 @@ export function ComponentsTab() {
     );
   }
 
-  if (state.status === "error") {
+  if (status === "error") {
     return (
       <div className="flex-1 flex items-center justify-center text-red-400 text-sm">
-        Error: {state.error}
+        Error: {error}
       </div>
     );
   }
 
-  if (state.tree.length === 0) {
+  if (tree.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
         React detected, but no components found.
@@ -47,18 +38,5 @@ export function ComponentsTab() {
     );
   }
 
-  return (
-    <ComponentTree
-      tree={state.tree}
-      onHighlight={highlightNode}
-      onHideHighlight={hideHighlight}
-      inspecting={inspecting}
-      inspectedNodeId={inspectedNodeId}
-      onStartInspect={startInspect}
-      onStopInspect={stopInspect}
-      onConsumeInspectedNodeId={consumeInspectedNodeId}
-      hooks={hooks}
-      onInspectHooks={inspectHooks}
-    />
-  );
+  return <ComponentTree />;
 }

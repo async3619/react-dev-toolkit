@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ComponentNode } from '@/types'
+import type { ComponentNode, HookInfo } from '@/types'
+import { useComponentTreeStore } from '../stores/componentTreeStore'
+import { usePersistedState } from './usePersistedState'
 import {
   type FlatNode,
   buildFlatList,
@@ -9,16 +11,27 @@ import {
   filterTree,
 } from '../utils/tree'
 
-export function useTreeNavigation(
-  tree: ComponentNode[],
-  firstPartyOnly: boolean,
-) {
+export function useComponentsTab() {
+  const tree = useComponentTreeStore((s) => s.tree)
+  const status = useComponentTreeStore((s) => s.status)
+  const inspectedNodeId = useComponentTreeStore((s) => s.inspectedNodeId)
+  const consumeInspectedNodeId = useComponentTreeStore((s) => s.consumeInspectedNodeId)
+  const storeInspectHooks = useComponentTreeStore((s) => s.inspectHooks)
+
+  // Navigation state (local to Components tab)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [expandedIds, setExpandedIds] = useState<Set<number>>(() =>
     collectIdsToDepth(tree, 1),
   )
   const [filter, setFilter] = useState('')
+  const [hooks, setHooks] = useState<HookInfo[] | null>(null)
 
+  // Display preferences (persisted to localStorage)
+  const [firstPartyOnly, setFirstPartyOnly] = usePersistedState('rdt:firstPartyOnly', false)
+  const [showProps, setShowProps] = usePersistedState('rdt:showProps', true)
+  const [showBadges, setShowBadges] = usePersistedState('rdt:showBadges', true)
+
+  // Derived data
   const baseTree = useMemo(
     () => (firstPartyOnly ? filterFirstPartyTree(tree) : tree),
     [tree, firstPartyOnly],
@@ -27,6 +40,24 @@ export function useTreeNavigation(
   const filteredTree = useMemo(
     () => (filter ? filterTree(baseTree, filter) : baseTree),
     [baseTree, filter],
+  )
+
+  const flat: FlatNode[] = useMemo(
+    () => buildFlatList(filteredTree, expandedIds),
+    [filteredTree, expandedIds],
+  )
+
+  const selectedNode = useMemo(
+    () => flat.find((n) => !n.closingTag && n.node.id === selectedId)?.node ?? null,
+    [flat, selectedId],
+  )
+
+  const selectedIndex = useMemo(
+    () =>
+      selectedId !== null
+        ? flat.findIndex((n) => !n.closingTag && n.node.id === selectedId)
+        : -1,
+    [flat, selectedId],
   )
 
   // When filtering, expand all filtered nodes so results are visible
@@ -48,29 +79,26 @@ export function useTreeNavigation(
     })
   }, [tree])
 
-  const flat: FlatNode[] = useMemo(
-    () => buildFlatList(filteredTree, expandedIds),
-    [filteredTree, expandedIds],
-  )
+  // When an element is inspected on the page, select it in the tree
+  useEffect(() => {
+    if (inspectedNodeId !== null) {
+      selectById(inspectedNodeId)
+      consumeInspectedNodeId()
+    }
+  }, [inspectedNodeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedNode = useMemo(
-    () => flat.find((n) => !n.closingTag && n.node.id === selectedId)?.node ?? null,
-    [flat, selectedId],
-  )
+  // Inspect hooks when selection changes
+  useEffect(() => {
+    if (selectedId !== null) {
+      setHooks(null)
+      storeInspectHooks(selectedId, setHooks)
+    }
+  }, [selectedId, storeInspectHooks])
 
-  const selectedIndex = useMemo(
-    () => (selectedId !== null ? flat.findIndex((n) => !n.closingTag && n.node.id === selectedId) : -1),
-    [flat, selectedId],
-  )
-
-  const select = useCallback((node: ComponentNode) => {
-    setSelectedId(node.id)
-  }, [])
-
+  // Actions
   const selectById = useCallback(
     (id: number) => {
       setSelectedId(id)
-      // Expand ancestors so the node is visible
       const expandAncestors = (
         nodes: ComponentNode[],
         path: number[],
@@ -191,29 +219,36 @@ export function useTreeNavigation(
         }
       }
     },
-    [
-      selectedId,
-      flat,
-      expandedIds,
-      filteredTree,
-      toggleExpand,
-      collapseWithChildren,
-    ],
+    [selectedId, flat, expandedIds, filteredTree, toggleExpand, collapseWithChildren],
   )
 
   return {
+    // From global store
+    tree,
+    status,
+
+    // Local navigation
     filter,
     setFilter,
     filteredTree,
     flat,
     expandedIds,
     selectedId,
+    setSelectedId,
     selectedIndex,
     selectedNode,
-    select,
     selectById,
     toggleExpand,
     collapseWithChildren,
     handleKeyDown,
+    hooks,
+
+    // Display preferences
+    firstPartyOnly,
+    setFirstPartyOnly,
+    showProps,
+    setShowProps,
+    showBadges,
+    setShowBadges,
   }
 }
