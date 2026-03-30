@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { TabBar } from "./components/TabBar";
 import { ComponentsTab } from "./components/ComponentsTab";
+import { ComponentTreeObserver } from "./components/ComponentTreeObserver";
 import { ProfilerTab } from "./components/ProfilerTab";
 import { useProfilerStore } from "./stores/profilerStore";
 
@@ -21,6 +22,7 @@ export default function App() {
 
   return (
     <TooltipPrimitive.Provider delayDuration={300}>
+      <ComponentTreeObserver />
       <div className="h-screen flex flex-col bg-gray-900 text-gray-100">
         <header className="flex items-center border-b border-gray-700 shrink-0">
           <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(t) => setActiveTab(t as Tab)} />
