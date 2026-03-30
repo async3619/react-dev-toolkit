@@ -10,49 +10,45 @@ const componentTags = new Set([0, 1, 11, 14, 15]);
 /**
  * Determines if a component fiber actually rendered during the current commit.
  *
- * Uses React's double-buffering invariant: when a component bails out, React
- * reuses the exact same fiber object (no new work-in-progress created). When a
- * component renders, React creates/reuses a WIP from the alternate, so the
- * current fiber is a different object than the one from the previous commit.
+ * Mirrors React DevTools' approach (recordProfilingDurations + didFiberRender):
+ * DevTools stores each fiber's reference in fiberInstance.data across ALL commits.
+ * On each commit it compares prevFiber !== nextFiber to detect bail-outs.
  *
- * We track fiber references across commits via WeakSet. If the same object
- * appears in consecutive commits, the component bailed out and did NOT render.
- * If a new object appears, React performed work on it — the component rendered.
+ * We replicate this with a WeakSet maintained on EVERY commit (not just during
+ * profiling). This means profiling starts with an accurate baseline — matching
+ * React DevTools' behavior where fiberInstance.data is always up-to-date.
  */
 function didFiberRender(fiber: FiberNode): boolean {
-  // If we've seen this exact fiber object before, it's a bail-out regardless
-  // of whether alternate is null. A component that mounted but never
-  // re-rendered keeps alternate === null forever, yet it's NOT a first mount
-  // on subsequent commits.
-  if (previousCommitFibers.has(fiber)) return false;
-
-  if (fiber.alternate === null) {
-    // No alternate: either a genuine first mount, or a component that existed
-    // before profiling started and was never re-rendered (alternate stays null).
-    // Use knownMountedFibers to distinguish: if we've seen this fiber in ANY
-    // previous profiling commit, it's not a first mount.
-    return !knownMountedFibers.has(fiber);
-  }
-
-  // Fiber reference changed between commits — React created a new WIP,
-  // which means the component's render function was executed.
-  return true;
+  return !previousCommitFibers.has(fiber);
 }
 
 /**
- * WeakSet of fiber references seen in the previous commit.
- * Used to detect bail-outs: React reuses the exact same fiber object
- * when a component bails out, so reference equality tells us no work was done.
+ * Fiber reference tracking — maintained on EVERY commit, not just during profiling.
+ *
+ * React DevTools keeps fiberInstance.data updated across all commits so that
+ * profiling always has a correct baseline. We replicate this by collecting
+ * all component fiber references on every onCommitFiberRoot call.
+ *
+ * - previousCommitFibers: component fibers from the previous commit
+ * - currentCommitFibers: component fibers being collected for the current commit
  */
 let previousCommitFibers = new WeakSet<FiberNode>();
 let currentCommitFibers = new WeakSet<FiberNode>();
 
 /**
- * Tracks fibers with null alternate that we've seen during this profiling
- * session. Prevents false "First render" for components that mounted before
- * profiling started or that never re-rendered (alternate stays null forever).
+ * Walks the fiber tree and collects all component fiber references into a set.
+ * This is intentionally lightweight — only WeakSet.add per component fiber.
  */
-let knownMountedFibers = new WeakSet<FiberNode>();
+function collectComponentFiberRefs(fiber: FiberNode, set: WeakSet<FiberNode>) {
+  if (componentTags.has(fiber.tag)) {
+    set.add(fiber);
+  }
+  let child = fiber.child;
+  while (child) {
+    collectComponentFiberRefs(child, set);
+    child = child.sibling;
+  }
+}
 
 let profiling = false;
 let targetType: unknown | undefined;
@@ -87,9 +83,10 @@ export function startProfiling(targetTypeId?: number, targetName?: string) {
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
   profilerNodeToFiberMap.clear();
-  previousCommitFibers = new WeakSet<FiberNode>();
-  currentCommitFibers = new WeakSet<FiberNode>();
-  knownMountedFibers = new WeakSet<FiberNode>();
+  // NOTE: previousCommitFibers/currentCommitFibers are NOT reset here.
+  // They are maintained across all commits (even outside profiling) so that
+  // profiling starts with an accurate baseline — matching React DevTools'
+  // fiberInstance.data approach.
 }
 
 export function stopProfiling() {
@@ -98,16 +95,20 @@ export function stopProfiling() {
 
 /**
  * Called from watcher.ts on every onCommitFiberRoot.
- * Only collects data when profiling is active.
+ * Always tracks fiber references for bail-out detection (even when not profiling).
+ * Only collects profiling data when profiling is active.
  */
 export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
-  if (!profiling) return;
   if (!fiberRoot?.current) return;
 
-  // Swap fiber reference sets: previous commit's fibers become the comparison
-  // baseline, and we start collecting the current commit's fibers fresh.
+  // Always track fiber references — swap sets and collect current tree refs.
+  // This runs on every commit so that when profiling starts, previousCommitFibers
+  // already has the correct baseline (matching React DevTools' fiberInstance.data).
   previousCommitFibers = currentCommitFibers;
   currentCommitFibers = new WeakSet<FiberNode>();
+  collectComponentFiberRefs(fiberRoot.current, currentCommitFibers);
+
+  if (!profiling) return;
 
   const roots: ProfileFiberNode[] = [];
 
@@ -226,16 +227,7 @@ function walkFiberForProfiling(
       }
       const selfDuration = Math.max(0, totalDuration - directChildrenDuration);
 
-      // Track this fiber for bail-out detection in the next commit
-      currentCommitFibers.add(fiber);
-
       const didRender = didFiberRender(fiber);
-
-      // Remember null-alternate fibers so we don't report "First render"
-      // again on future commits if the component never re-renders.
-      if (fiber.alternate === null) {
-        knownMountedFibers.add(fiber);
-      }
 
       const nodeId = nextProfilerNodeId();
       profilerNodeToFiberMap.set(nodeId, fiber);
