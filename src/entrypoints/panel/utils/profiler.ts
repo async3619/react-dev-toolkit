@@ -1,4 +1,4 @@
-import type { HocBadge, ProfileFiberNode, ComponentNode } from "@/types";
+import type { HocBadge, ProfileFiberNode, ComponentNode, ChangedProp, ChangedContext } from "@/types";
 
 // --- Component name collection ---
 
@@ -52,6 +52,8 @@ export interface FlatBar {
   intensity: number;
   renderReasons?: string[];
   changedHookIndices?: number[];
+  changedProps?: ChangedProp[];
+  changedContexts?: ChangedContext[];
   /** 0 = gray (not rendered), 1 = fully colored. Used for transition blending. */
   colorBlend?: number;
 }
@@ -136,6 +138,8 @@ function collectBars(
     intensity,
     renderReasons: node.renderReasons,
     changedHookIndices: node.changedHookIndices,
+    changedProps: node.changedProps,
+    changedContexts: node.changedContexts,
   });
 
   if (node.children.length === 0) return;

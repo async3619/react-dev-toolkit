@@ -9,7 +9,7 @@ import { FlameGraph, type FlameGraphHandle } from "./FlameGraph";
 import { useProfiler } from "../hooks/useProfiler";
 import { useOverlayScrollbar } from "../hooks/useOverlayScrollbar";
 import { type FlatBar, type ComponentNameEntry, ROW_HEIGHT, flattenTree, collectRendered } from "../utils/profiler";
-import type { ProfileCommitData, HookInfo } from "@/types";
+import type { ProfileCommitData, HookInfo, ChangedProp, ChangedContext, DiffTreeNode } from "@/types";
 
 export function ProfilerTab() {
   const {
@@ -636,6 +636,26 @@ function BarDetailSidebar({ bar }: { bar: FlatBar }) {
         </SidebarSection>
       )}
 
+      {bar.changedProps && bar.changedProps.length > 0 && (
+        <SidebarSection title="Changed Props" defaultOpen>
+          <div className="space-y-1.5">
+            {bar.changedProps.map((prop) => (
+              <PropDiffEntry key={prop.name} prop={prop} />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+
+      {bar.changedContexts && bar.changedContexts.length > 0 && (
+        <SidebarSection title="Changed Contexts" defaultOpen>
+          <div className="space-y-1.5">
+            {bar.changedContexts.map((ctx) => (
+              <ContextDiffEntry key={ctx.name} context={ctx} />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+
       {bar.changedHookIndices && bar.changedHookIndices.length > 0 && hooks && (
         <SidebarSection title="Hooks" defaultOpen>
           <div className="space-y-0.5">
@@ -651,6 +671,100 @@ function BarDetailSidebar({ bar }: { bar: FlatBar }) {
       )}
     </div>
   );
+}
+
+function DiffTreeNodeEntry({ node }: { node: DiffTreeNode }) {
+  const [open, setOpen] = useState(false);
+  const hasChildren = node.children && node.children.length > 0;
+  const changed = node.changed !== false;
+
+  if (hasChildren) {
+    return (
+      <div className="text-[11px]">
+        <button
+          type="button"
+          className={`flex items-center gap-1 cursor-pointer ${changed ? "text-yellow-400" : "text-gray-500"}`}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? <ChevronDown size={10} className="shrink-0" /> : <ChevronRight size={10} className="shrink-0" />}
+          <span>{node.key}</span>
+        </button>
+        {open && (
+          <div className="ml-3 mt-0.5 space-y-0.5">
+            {node.children!.map((child) => (
+              <DiffTreeNodeEntry key={child.key} node={child} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!changed) {
+    return (
+      <div className="text-[11px] flex items-start gap-1.5 text-gray-600">
+        <span className="shrink-0 w-3" />
+        <span>{node.key}:</span>
+        <span className="break-all truncate max-w-[200px]" title={node.nextValue}>{node.nextValue}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-[11px]">
+      <div className="flex items-start gap-1.5">
+        <span className="shrink-0 w-3" />
+        <span className="text-yellow-400">{node.key}:</span>
+        <span className="text-red-300/80 line-through break-all" title={node.prevValue}>{node.prevValue}</span>
+        <span className="text-gray-500">→</span>
+        <span className="text-green-300/80 break-all" title={node.nextValue}>{node.nextValue}</span>
+      </div>
+    </div>
+  );
+}
+
+function DiffEntry({ name, prevValue, nextValue, diffTree }: { name: string; prevValue: string; nextValue: string; diffTree?: DiffTreeNode[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="text-xs font-mono">
+      <button
+        type="button"
+        className="flex items-center gap-1 text-blue-400 font-semibold hover:text-blue-300 cursor-pointer"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
+        {name}
+      </button>
+      {open && (
+        <div className="ml-4 mt-0.5">
+          {diffTree && diffTree.length > 0 ? (
+            <div className="space-y-0.5">
+              {diffTree.map((node) => (
+                <DiffTreeNodeEntry key={node.key} node={node} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-[11px]">
+              <div className="flex items-start gap-1.5">
+                <span className="text-red-300/80 line-through break-all" title={prevValue}>{prevValue}</span>
+                <span className="text-gray-500">→</span>
+                <span className="text-green-300/80 break-all" title={nextValue}>{nextValue}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PropDiffEntry({ prop }: { prop: ChangedProp }) {
+  return <DiffEntry name={prop.name} prevValue={prop.prevValue} nextValue={prop.nextValue} diffTree={prop.diffTree} />;
+}
+
+function ContextDiffEntry({ context }: { context: ChangedContext }) {
+  return <DiffEntry name={context.name} prevValue={context.prevValue} nextValue={context.nextValue} diffTree={context.diffTree} />;
 }
 
 /** Check if a hook or any of its descendants has an ID in the changed set */
