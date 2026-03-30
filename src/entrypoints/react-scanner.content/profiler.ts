@@ -20,12 +20,19 @@ const componentTags = new Set([0, 1, 11, 14, 15]);
  * If a new object appears, React performed work on it — the component rendered.
  */
 function didFiberRender(fiber: FiberNode): boolean {
-  // First mount — no alternate means the component was just created
-  if (fiber.alternate === null) return true;
-
-  // React reuses the same fiber object when bailing out (no new WIP created).
-  // If this exact object was seen in the previous commit, it's a bail-out.
+  // If we've seen this exact fiber object before, it's a bail-out regardless
+  // of whether alternate is null. A component that mounted but never
+  // re-rendered keeps alternate === null forever, yet it's NOT a first mount
+  // on subsequent commits.
   if (previousCommitFibers.has(fiber)) return false;
+
+  if (fiber.alternate === null) {
+    // No alternate: either a genuine first mount, or a component that existed
+    // before profiling started and was never re-rendered (alternate stays null).
+    // Use knownMountedFibers to distinguish: if we've seen this fiber in ANY
+    // previous profiling commit, it's not a first mount.
+    return !knownMountedFibers.has(fiber);
+  }
 
   // Fiber reference changed between commits — React created a new WIP,
   // which means the component's render function was executed.
@@ -39,6 +46,13 @@ function didFiberRender(fiber: FiberNode): boolean {
  */
 let previousCommitFibers = new WeakSet<FiberNode>();
 let currentCommitFibers = new WeakSet<FiberNode>();
+
+/**
+ * Tracks fibers with null alternate that we've seen during this profiling
+ * session. Prevents false "First render" for components that mounted before
+ * profiling started or that never re-rendered (alternate stays null forever).
+ */
+let knownMountedFibers = new WeakSet<FiberNode>();
 
 let profiling = false;
 let targetType: unknown | undefined;
@@ -75,6 +89,7 @@ export function startProfiling(targetTypeId?: number, targetName?: string) {
   profilerNodeToFiberMap.clear();
   previousCommitFibers = new WeakSet<FiberNode>();
   currentCommitFibers = new WeakSet<FiberNode>();
+  knownMountedFibers = new WeakSet<FiberNode>();
 }
 
 export function stopProfiling() {
@@ -215,6 +230,12 @@ function walkFiberForProfiling(
       currentCommitFibers.add(fiber);
 
       const didRender = didFiberRender(fiber);
+
+      // Remember null-alternate fibers so we don't report "First render"
+      // again on future commits if the component never re-renders.
+      if (fiber.alternate === null) {
+        knownMountedFibers.add(fiber);
+      }
 
       const nodeId = nextProfilerNodeId();
       profilerNodeToFiberMap.set(nodeId, fiber);
