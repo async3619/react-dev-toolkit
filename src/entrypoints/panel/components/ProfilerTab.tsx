@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Play, Square, Flame, Plus, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X, Anchor, Check } from "lucide-react";
+import { Play, Square, Flame, Plus, Clock, Hash, Layers, Search, Group, AlertCircle, ChevronDown, ChevronRight, X, Crosshair, Check } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { ProfileSessionMeta } from "../utils/profilerDb";
 import { Tooltip } from "./Tooltip";
@@ -17,9 +17,9 @@ export function ProfilerTab() {
     commits,
     sessions,
     activeSessionId,
-    anchorComponent,
-    anchorTypeId,
-    setAnchorComponent,
+    targetComponent,
+    targetTypeId,
+    setTargetComponent,
     componentNames,
     startProfiling,
     stopProfiling,
@@ -38,7 +38,7 @@ export function ProfilerTab() {
         status={status}
         sessions={sessions}
         activeSessionId={activeSessionId}
-        anchorComponent={anchorComponent}
+        targetComponent={targetComponent}
         onStart={() => {
           setSelectedCommitIndex(0);
           startProfiling();
@@ -57,9 +57,9 @@ export function ProfilerTab() {
 
       {status === "idle" && (
         <IdleView
-          anchorComponent={anchorComponent}
-          anchorTypeId={anchorTypeId}
-          onAnchorChange={setAnchorComponent}
+          targetComponent={targetComponent}
+          targetTypeId={targetTypeId}
+          onTargetChange={setTargetComponent}
           componentNames={componentNames}
         />
       )}
@@ -73,7 +73,7 @@ export function ProfilerTab() {
         />
       )}
       {status === "recorded" && commits.length === 0 && (
-        <NoDataView anchorComponent={anchorComponent} />
+        <NoDataView targetComponent={targetComponent} />
       )}
       {status === "recorded" && selectedCommit && (
         <RecordedView
@@ -91,7 +91,7 @@ function ProfilerToolbar({
   status,
   sessions,
   activeSessionId,
-  anchorComponent,
+  targetComponent,
   onStart,
   onStop,
   onClear,
@@ -101,14 +101,14 @@ function ProfilerToolbar({
   status: string;
   sessions: ProfileSessionMeta[];
   activeSessionId: number | null;
-  anchorComponent: string;
+  targetComponent: string;
   onStart: () => void;
   onStop: () => void;
   onClear: () => void;
   onLoadSession: (id: number) => void;
   onDeleteSession: (id: number) => void;
 }) {
-  const anchor = anchorComponent.trim();
+  const target = targetComponent.trim();
 
   return (
     <div className="flex items-center border-b border-gray-700 shrink-0">
@@ -146,10 +146,10 @@ function ProfilerToolbar({
         </Tooltip>
       )}
 
-      {anchor && (
+      {target && (
         <div className="flex items-center gap-1.5 px-2 text-xs text-blue-400 shrink-0 border-r border-gray-700 py-1.5">
-          <Anchor size={12} />
-          <span className="font-mono">{anchor}</span>
+          <Crosshair size={12} />
+          <span className="font-mono">{target}</span>
         </div>
       )}
 
@@ -208,14 +208,14 @@ function ProfilerToolbar({
 }
 
 function IdleView({
-  anchorComponent,
-  anchorTypeId,
-  onAnchorChange,
+  targetComponent,
+  targetTypeId,
+  onTargetChange,
   componentNames,
 }: {
-  anchorComponent: string;
-  anchorTypeId: number | null;
-  onAnchorChange: (name: string, typeId: number | null) => void;
+  targetComponent: string;
+  targetTypeId: number | null;
+  onTargetChange: (name: string, typeId: number | null) => void;
   componentNames: ComponentNameEntry[];
 }) {
   const [query, setQuery] = useState("");
@@ -274,13 +274,13 @@ function IdleView({
   const select = useCallback(
     (entry: ComponentNameEntry) => {
       const isSelected = entry.typeId != null
-        ? anchorTypeId === entry.typeId
-        : anchorComponent === entry.name;
-      onAnchorChange(isSelected ? "" : entry.name, isSelected ? null : entry.typeId);
+        ? targetTypeId === entry.typeId
+        : targetComponent === entry.name;
+      onTargetChange(isSelected ? "" : entry.name, isSelected ? null : entry.typeId);
       setQuery("");
       setOpen(false);
     },
-    [anchorTypeId, anchorComponent, onAnchorChange],
+    [targetTypeId, targetComponent, onTargetChange],
   );
 
   const onKeyDown = useCallback(
@@ -314,10 +314,10 @@ function IdleView({
     [open, filtered, highlightIndex, select],
   );
 
-  const selectedEntry = anchorTypeId != null
-    ? componentNames.find((c) => c.typeId === anchorTypeId)
-    : anchorComponent
-      ? componentNames.find((c) => c.name === anchorComponent)
+  const selectedEntry = targetTypeId != null
+    ? componentNames.find((c) => c.typeId === targetTypeId)
+    : targetComponent
+      ? componentNames.find((c) => c.name === targetComponent)
       : null;
 
   return (
@@ -331,8 +331,8 @@ function IdleView({
       {componentNames.length > 0 && (
         <div className="w-72 mt-2" ref={containerRef}>
           <div className="flex items-center gap-1.5 mb-2 text-xs text-gray-400">
-            <Anchor size={12} />
-            <span>Anchor component</span>
+            <Crosshair size={12} />
+            <span>Target component</span>
           </div>
 
           <div className="relative">
@@ -343,7 +343,7 @@ function IdleView({
             <input
               ref={inputRef}
               type="text"
-              value={open ? query : anchorComponent}
+              value={open ? query : targetComponent}
               onChange={(e) => {
                 setQuery(e.target.value);
                 if (!open) setOpen(true);
@@ -355,16 +355,16 @@ function IdleView({
               onKeyDown={onKeyDown}
               placeholder="Search components..."
               className={`w-full pl-6 py-1.5 text-xs bg-gray-800 border rounded text-gray-200 placeholder-gray-600 outline-none ${
-                anchorComponent && !open
+                targetComponent && !open
                   ? "border-blue-500/50 pr-7"
                   : "border-gray-700 pr-2 focus:border-gray-500"
               }`}
             />
-            {anchorComponent && !open && (
+            {targetComponent && !open && (
               <button
                 type="button"
                 onClick={() => {
-                  onAnchorChange("", null);
+                  onTargetChange("", null);
                   setQuery("");
                   inputRef.current?.focus();
                 }}
@@ -383,8 +383,8 @@ function IdleView({
               >
                 {filtered.map((entry, i) => {
                   const isSelected = entry.typeId != null
-                      ? anchorTypeId === entry.typeId
-                      : anchorComponent === entry.name;
+                      ? targetTypeId === entry.typeId
+                      : targetComponent === entry.name;
                   const isHighlighted = i === highlightIndex;
                   return (
                     <button
@@ -424,7 +424,7 @@ function IdleView({
 
           {selectedEntry && (
             <div className="mt-2 px-2 py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 flex items-center gap-1.5">
-              <Anchor size={10} />
+              <Crosshair size={10} />
               <span className="font-mono truncate">{selectedEntry.name}</span>
               <span className="text-blue-400/50 text-[10px] ml-auto">
                 {selectedEntry.count} instance{selectedEntry.count > 1 ? "s" : ""}
@@ -449,15 +449,15 @@ function RecordingView() {
   );
 }
 
-function NoDataView({ anchorComponent }: { anchorComponent: string }) {
-  const anchor = anchorComponent.trim();
+function NoDataView({ targetComponent }: { targetComponent: string }) {
+  const target = targetComponent.trim();
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-sm gap-3">
       <Flame size={32} className="text-gray-600" />
       <p>No profiling data recorded.</p>
       <p className="text-xs text-gray-600">
-        {anchor
-          ? `No instances of "${anchor}" re-rendered during the recording session.`
+        {target
+          ? `No instances of "${target}" re-rendered during the recording session.`
           : "The app did not re-render during the recording session."}
       </p>
     </div>

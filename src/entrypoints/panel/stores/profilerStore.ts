@@ -19,10 +19,10 @@ interface ProfilerState {
   domain: string;
   /** Whether sessions have been loaded from IndexedDB */
   initialized: boolean;
-  /** Component name to anchor profiling to (only profile matching instances) */
-  anchorComponent: string;
-  /** TypeId of the anchor component for type-based matching */
-  anchorTypeId: number | null;
+  /** Component name to target profiling to (only profile matching instances) */
+  targetComponent: string;
+  /** TypeId of the target component for type-based matching */
+  targetTypeId: number | null;
 }
 
 interface ProfilerActions {
@@ -32,7 +32,7 @@ interface ProfilerActions {
   addCommit: (commit: ProfileCommitData) => void;
   clearCommits: () => void;
   setActiveSessionId: (id: number | null) => void;
-  setAnchorComponent: (name: string, typeId: number | null) => void;
+  setTargetComponent: (name: string, typeId: number | null) => void;
   save: () => Promise<void>;
   load: (id: number) => Promise<void>;
   remove: (id: number) => void;
@@ -47,8 +47,8 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
     activeSessionId: null,
     domain: "unknown",
     initialized: false,
-    anchorComponent: "",
-    anchorTypeId: null,
+    targetComponent: "",
+    targetTypeId: null,
 
     init: async (domain: string) => {
       if (get().initialized && get().domain === domain) return;
@@ -65,7 +65,7 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
 
     setActiveSessionId: (id) => set({ activeSessionId: id }),
 
-    setAnchorComponent: (name, typeId) => set({ anchorComponent: name, anchorTypeId: typeId }),
+    setTargetComponent: (name, typeId) => set({ targetComponent: name, targetTypeId: typeId }),
 
     save: async () => {
       const { commits, domain } = get();
@@ -118,6 +118,6 @@ export const useProfilerStore = create<ProfilerState & ProfilerActions>(
     },
 
     clear: () =>
-      set({ status: "idle", commits: [], activeSessionId: null, anchorComponent: "", anchorTypeId: null }),
+      set({ status: "idle", commits: [], activeSessionId: null, targetComponent: "", targetTypeId: null }),
   }),
 );

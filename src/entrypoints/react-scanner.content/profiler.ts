@@ -8,8 +8,8 @@ import { getTypeByTypeId } from "./state";
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
 let profiling = false;
-let anchorType: unknown | undefined;
-let anchorComponentName: string | undefined;
+let targetType: unknown | undefined;
+let targetComponentName: string | undefined;
 let commitIdCounter = 0;
 let profilerNodeIdCounter = 0;
 
@@ -32,10 +32,10 @@ export function highlightProfilerNode(nodeId: number, nodeName: string) {
   highlightElement(nodeId, nodeName, el);
 }
 
-export function startProfiling(anchorTypeId?: number, anchorName?: string) {
+export function startProfiling(targetTypeId?: number, targetName?: string) {
   profiling = true;
-  anchorType = anchorTypeId != null ? getTypeByTypeId(anchorTypeId) : undefined;
-  anchorComponentName = anchorName?.trim() || undefined;
+  targetType = targetTypeId != null ? getTypeByTypeId(targetTypeId) : undefined;
+  targetComponentName = targetName?.trim() || undefined;
   commitIdCounter = 0;
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
@@ -56,13 +56,13 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
 
   const roots: ProfileFiberNode[] = [];
 
-  const hasAnchor = anchorType !== undefined || anchorComponentName !== undefined;
+  const hasTarget = targetType !== undefined || targetComponentName !== undefined;
 
-  if (hasAnchor) {
-    const anchorFibers = anchorType !== undefined
-      ? findAnchorFibersByType(fiberRoot.current, anchorType)
-      : findAnchorFibersByName(fiberRoot.current, anchorComponentName!);
-    for (const fiber of anchorFibers) {
+  if (hasTarget) {
+    const targetFibers = targetType !== undefined
+      ? findTargetFibersByType(fiberRoot.current, targetType)
+      : findTargetFibersByName(fiberRoot.current, targetComponentName!);
+    for (const fiber of targetFibers) {
       walkFiberForProfiling(fiber, roots);
     }
   } else {
@@ -71,8 +71,8 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
 
   if (roots.length === 0) return;
 
-  // When anchored, only record commits where at least one anchor instance actually rendered
-  if (hasAnchor && !roots.some((r) => r.didRender)) return;
+  // When targeted, only record commits where at least one target instance actually rendered
+  if (hasTarget && !roots.some((r) => r.didRender)) return;
 
   let duration = 0;
   for (const root of roots) {
@@ -89,35 +89,35 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   window.postMessage({ type: "PROFILING_COMMIT", commit }, "*");
 }
 
-function findAnchorFibersByType(fiber: FiberNode, targetType: unknown): FiberNode[] {
+function findTargetFibersByType(fiber: FiberNode, matchType: unknown): FiberNode[] {
   const results: FiberNode[] = [];
-  collectAnchorFibersByType(fiber, targetType, results);
+  collectTargetFibersByType(fiber, matchType, results);
   return results;
 }
 
-function collectAnchorFibersByType(
+function collectTargetFibersByType(
   fiber: FiberNode,
-  targetType: unknown,
+  matchType: unknown,
   out: FiberNode[],
 ): void {
-  if (componentTags.has(fiber.tag) && fiber.type === targetType) {
+  if (componentTags.has(fiber.tag) && fiber.type === matchType) {
     out.push(fiber);
     return;
   }
   let child = fiber.child;
   while (child) {
-    collectAnchorFibersByType(child, targetType, out);
+    collectTargetFibersByType(child, matchType, out);
     child = child.sibling;
   }
 }
 
-function findAnchorFibersByName(fiber: FiberNode, name: string): FiberNode[] {
+function findTargetFibersByName(fiber: FiberNode, name: string): FiberNode[] {
   const results: FiberNode[] = [];
-  collectAnchorFibersByName(fiber, name, results);
+  collectTargetFibersByName(fiber, name, results);
   return results;
 }
 
-function collectAnchorFibersByName(
+function collectTargetFibersByName(
   fiber: FiberNode,
   name: string,
   out: FiberNode[],
@@ -131,7 +131,7 @@ function collectAnchorFibersByName(
   }
   let child = fiber.child;
   while (child) {
-    collectAnchorFibersByName(child, name, out);
+    collectTargetFibersByName(child, name, out);
     child = child.sibling;
   }
 }

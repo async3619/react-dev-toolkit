@@ -57,6 +57,6 @@ export type MessageType =
   | { type: "SCAN_REACT_TREE" }
   | { type: "REACT_TREE_RESULT"; tree: ComponentNode[] | null; error?: string }
   | { type: "REACT_NOT_FOUND" }
-  | { type: "START_PROFILING"; anchorTypeId?: number; anchorComponent?: string }
+  | { type: "START_PROFILING"; targetTypeId?: number; targetComponent?: string }
   | { type: "STOP_PROFILING" }
   | { type: "PROFILING_COMMIT"; commit: ProfileCommitData };
