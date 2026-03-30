@@ -394,10 +394,9 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     return { reasons: ["First render"] };
   }
 
-  // Props — always collect all props with before/after values.
-  // When a component re-renders due to internal state change (not parent),
-  // prevProps === nextProps (same reference). We still show all props so
-  // the user can always inspect what the component received.
+  // Props changed — compare individual keys regardless of object reference.
+  // (prevProps === nextProps can happen on state-change re-renders, but we
+  // still compare keys so we don't miss anything.)
   const prevProps = alt.memoizedProps;
   const nextProps = fiber.memoizedProps;
   if (prevProps && nextProps) {
@@ -410,20 +409,18 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     for (const key of allKeys) {
       if (prevProps[key] !== nextProps[key]) {
         changed.push(key);
+        const diffTree = buildDiffTree(prevProps[key], nextProps[key], 0);
+        propDiffs.push({
+          name: key,
+          prevValue: serializePropValue(prevProps[key]),
+          nextValue: serializePropValue(nextProps[key]),
+          ...(diffTree.length > 0 ? { diffTree } : {}),
+        });
       }
-      const diffTree = buildDiffTree(prevProps[key], nextProps[key], 0);
-      propDiffs.push({
-        name: key,
-        prevValue: serializePropValue(prevProps[key]),
-        nextValue: serializePropValue(nextProps[key]),
-        ...(diffTree.length > 0 ? { diffTree } : {}),
-      });
-    }
-    if (propDiffs.length > 0) {
-      changedProps = propDiffs;
     }
     if (changed.length > 0) {
       reasons.push(`Props changed: ${changed.join(", ")}`);
+      changedProps = propDiffs;
     }
   }
 
