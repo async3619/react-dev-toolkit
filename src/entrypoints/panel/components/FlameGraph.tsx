@@ -456,8 +456,6 @@ export const FlameGraph = forwardRef<
     [bars],
   );
 
-  if (bars.length === 0) return null;
-
   const canvasHeight = totalHeight + CANVAS_PAD * 2;
 
   return (
@@ -468,10 +466,12 @@ export const FlameGraph = forwardRef<
       onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
-      <canvas
-        ref={canvasRef}
-        style={{ display: "block", height: `${canvasHeight}px`, width: "100%" }}
-      />
+      {bars.length > 0 && (
+        <canvas
+          ref={canvasRef}
+          style={{ display: "block", height: `${canvasHeight}px`, width: "100%" }}
+        />
+      )}
     </div>
   );
 });
