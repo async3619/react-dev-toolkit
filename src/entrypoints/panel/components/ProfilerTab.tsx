@@ -9,7 +9,7 @@ import { FlameGraph, type FlameGraphHandle } from "./FlameGraph";
 import { useProfiler } from "../hooks/useProfiler";
 import { useOverlayScrollbar } from "../hooks/useOverlayScrollbar";
 import { type FlatBar, type ComponentNameEntry, ROW_HEIGHT, flattenTree, collectRendered } from "../utils/profiler";
-import type { ProfileCommitData, HookInfo } from "@/types";
+import type { ProfileCommitData, HookInfo, ChangedProp, ChangedContext } from "@/types";
 
 export function ProfilerTab() {
   const {
@@ -636,6 +636,26 @@ function BarDetailSidebar({ bar }: { bar: FlatBar }) {
         </SidebarSection>
       )}
 
+      {bar.changedProps && bar.changedProps.length > 0 && (
+        <SidebarSection title="Changed Props" defaultOpen>
+          <div className="space-y-1.5">
+            {bar.changedProps.map((prop) => (
+              <PropDiffEntry key={prop.name} prop={prop} />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+
+      {bar.changedContexts && bar.changedContexts.length > 0 && (
+        <SidebarSection title="Changed Contexts" defaultOpen>
+          <div className="space-y-1.5">
+            {bar.changedContexts.map((ctx) => (
+              <ContextDiffEntry key={ctx.name} context={ctx} />
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+
       {bar.changedHookIndices && bar.changedHookIndices.length > 0 && hooks && (
         <SidebarSection title="Hooks" defaultOpen>
           <div className="space-y-0.5">
@@ -651,6 +671,34 @@ function BarDetailSidebar({ bar }: { bar: FlatBar }) {
       )}
     </div>
   );
+}
+
+function DiffEntry({ name, prevValue, nextValue }: { name: string; prevValue: string; nextValue: string }) {
+  return (
+    <div className="text-xs font-mono">
+      <div className="text-blue-400 font-semibold mb-0.5">{name}</div>
+      <div className="flex items-start gap-1 text-[11px]">
+        <span className="text-red-400 shrink-0">-</span>
+        <span className="text-red-300/80 break-all" title={prevValue}>
+          {prevValue}
+        </span>
+      </div>
+      <div className="flex items-start gap-1 text-[11px]">
+        <span className="text-green-400 shrink-0">+</span>
+        <span className="text-green-300/80 break-all" title={nextValue}>
+          {nextValue}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PropDiffEntry({ prop }: { prop: ChangedProp }) {
+  return <DiffEntry name={prop.name} prevValue={prop.prevValue} nextValue={prop.nextValue} />;
+}
+
+function ContextDiffEntry({ context }: { context: ChangedContext }) {
+  return <DiffEntry name={context.name} prevValue={context.prevValue} nextValue={context.nextValue} />;
 }
 
 /** Check if a hook or any of its descendants has an ID in the changed set */

@@ -38,6 +38,18 @@ export interface ProfileCommitData {
   roots: ProfileFiberNode[];
 }
 
+export interface ChangedProp {
+  name: string;
+  prevValue: string;
+  nextValue: string;
+}
+
+export interface ChangedContext {
+  name: string;
+  prevValue: string;
+  nextValue: string;
+}
+
 export interface ProfileFiberNode {
   nodeId: number;
   name: string;
@@ -51,6 +63,10 @@ export interface ProfileFiberNode {
   renderReasons?: string[];
   /** 1-based hook IDs that changed (excluding effect hooks) */
   changedHookIndices?: number[];
+  /** Props that changed between renders (prev/next values) */
+  changedProps?: ChangedProp[];
+  /** Contexts that changed between renders (prev/next values) */
+  changedContexts?: ChangedContext[];
 }
 
 export type MessageType =

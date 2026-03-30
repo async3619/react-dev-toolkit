@@ -1,5 +1,5 @@
 import type { FiberNode } from "./types";
-import type { ProfileCommitData, ProfileFiberNode, HookInfo } from "@/types";
+import type { ProfileCommitData, ProfileFiberNode, HookInfo, ChangedProp, ChangedContext } from "@/types";
 import { getFiberName, findNearestDomElement } from "./fiber";
 import { highlightElement, hideHighlight } from "./highlight";
 import { inspectHooksOfFiberDirect } from "./hooks";
@@ -175,10 +175,14 @@ function walkFiberForProfiling(
 
       let renderReasons: string[] | undefined;
       let changedHookIndices: number[] | undefined;
+      let changedProps: ChangedProp[] | undefined;
+      let changedContexts: ChangedContext[] | undefined;
       if (didRender) {
         const result = detectRenderReasons(fiber);
         renderReasons = result.reasons;
         changedHookIndices = result.changedHookIndices;
+        changedProps = result.changedProps;
+        changedContexts = result.changedContexts;
       }
 
       out.push({
@@ -192,6 +196,8 @@ function walkFiberForProfiling(
         didRender,
         renderReasons,
         changedHookIndices,
+        changedProps,
+        changedContexts,
       });
       return;
     }
@@ -205,9 +211,54 @@ function walkFiberForProfiling(
   }
 }
 
-function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[] } {
+const MAX_SERIALIZED_LENGTH = 200;
+
+function serializePropValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "function") {
+    return value.name ? `ƒ ${value.name}()` : "ƒ ()";
+  }
+  if (typeof value === "symbol") return value.toString();
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  // React element
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "$$typeof" in value
+  ) {
+    const el = value as { type?: { name?: string; displayName?: string } | string };
+    const typeName =
+      typeof el.type === "string"
+        ? el.type
+        : el.type?.displayName ?? el.type?.name ?? "Unknown";
+    return `<${typeName} />`;
+  }
+
+  try {
+    const json = JSON.stringify(value, (_key, v) => {
+      if (typeof v === "function") return v.name ? `ƒ ${v.name}()` : "ƒ ()";
+      if (typeof v === "symbol") return v.toString();
+      if (typeof v === "undefined") return "undefined";
+      return v;
+    });
+    if (json && json.length > MAX_SERIALIZED_LENGTH) {
+      return json.slice(0, MAX_SERIALIZED_LENGTH) + "…";
+    }
+    return json ?? "undefined";
+  } catch {
+    if (Array.isArray(value)) return `Array(${value.length})`;
+    return "{…}";
+  }
+}
+
+function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[]; changedProps?: ChangedProp[]; changedContexts?: ChangedContext[] } {
   const reasons: string[] = [];
   let changedHookIndices: number[] | undefined;
+  let changedProps: ChangedProp[] | undefined;
+  let changedContexts: ChangedContext[] | undefined;
   const alt = fiber.alternate;
 
   if (!alt) {
@@ -219,6 +270,7 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
   const nextProps = fiber.memoizedProps;
   if (prevProps && nextProps && prevProps !== nextProps) {
     const changed: string[] = [];
+    const propDiffs: ChangedProp[] = [];
     const allKeys = new Set([
       ...Object.keys(prevProps),
       ...Object.keys(nextProps),
@@ -226,10 +278,16 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     for (const key of allKeys) {
       if (prevProps[key] !== nextProps[key]) {
         changed.push(key);
+        propDiffs.push({
+          name: key,
+          prevValue: serializePropValue(prevProps[key]),
+          nextValue: serializePropValue(nextProps[key]),
+        });
       }
     }
     if (changed.length > 0) {
       reasons.push(`Props changed: ${changed.join(", ")}`);
+      changedProps = propDiffs;
     }
   }
 
@@ -248,20 +306,34 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
 
   // Context changed
   if (fiber.dependencies?.firstContext) {
+    const contextDiffs: ChangedContext[] = [];
     let ctx = fiber.dependencies.firstContext as {
       memoizedValue?: unknown;
-      context?: { _currentValue?: unknown };
+      context?: { _currentValue?: unknown; displayName?: string; _context?: { displayName?: string } };
       next?: unknown;
     } | null;
+    let contextIndex = 0;
     while (ctx) {
       if (
         ctx.context &&
         ctx.memoizedValue !== ctx.context._currentValue
       ) {
-        reasons.push("Context changed");
-        break;
+        const contextName =
+          ctx.context.displayName ??
+          ctx.context._context?.displayName ??
+          `Context(${contextIndex})`;
+        contextDiffs.push({
+          name: contextName,
+          prevValue: serializePropValue(ctx.memoizedValue),
+          nextValue: serializePropValue(ctx.context._currentValue),
+        });
       }
+      contextIndex++;
       ctx = ctx.next as typeof ctx;
+    }
+    if (contextDiffs.length > 0) {
+      reasons.push(`Context changed: ${contextDiffs.map((c) => c.name).join(", ")}`);
+      changedContexts = contextDiffs;
     }
   }
 
@@ -269,7 +341,7 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     reasons.push("Parent re-rendered");
   }
 
-  return { reasons, changedHookIndices };
+  return { reasons, changedHookIndices, changedProps, changedContexts };
 }
 
 // --- Hook change detection ---
