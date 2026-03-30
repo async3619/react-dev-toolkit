@@ -38,16 +38,26 @@ export interface ProfileCommitData {
   roots: ProfileFiberNode[];
 }
 
+export interface DiffTreeNode {
+  key: string;
+  prevValue?: string;
+  nextValue?: string;
+  changed?: boolean;
+  children?: DiffTreeNode[];
+}
+
 export interface ChangedProp {
   name: string;
   prevValue: string;
   nextValue: string;
+  diffTree?: DiffTreeNode[];
 }
 
 export interface ChangedContext {
   name: string;
   prevValue: string;
   nextValue: string;
+  diffTree?: DiffTreeNode[];
 }
 
 export interface ProfileFiberNode {

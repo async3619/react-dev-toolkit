@@ -1,5 +1,5 @@
 import type { FiberNode } from "./types";
-import type { ProfileCommitData, ProfileFiberNode, HookInfo, ChangedProp, ChangedContext } from "@/types";
+import type { ProfileCommitData, ProfileFiberNode, HookInfo, ChangedProp, ChangedContext, DiffTreeNode } from "@/types";
 import { getFiberName, findNearestDomElement } from "./fiber";
 import { highlightElement, hideHighlight } from "./highlight";
 import { inspectHooksOfFiberDirect } from "./hooks";
@@ -212,6 +212,68 @@ function walkFiberForProfiling(
 }
 
 const MAX_SERIALIZED_LENGTH = 200;
+const MAX_DIFF_DEPTH = 10;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && !("$$typeof" in (value as Record<string, unknown>));
+}
+
+function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new WeakSet()): DiffTreeNode[] {
+  if (depth > MAX_DIFF_DEPTH) return [];
+
+  // Guard against circular references
+  if (typeof prev === "object" && prev !== null) {
+    if (seen.has(prev)) return [];
+    seen.add(prev);
+  }
+  if (typeof next === "object" && next !== null) {
+    if (seen.has(next)) return [];
+    seen.add(next);
+  }
+
+  if (isPlainObject(prev) && isPlainObject(next)) {
+    const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+    const nodes: DiffTreeNode[] = [];
+    for (const key of allKeys) {
+      const pv = prev[key];
+      const nv = next[key];
+      const changed = pv !== nv;
+      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      nodes.push({
+        key,
+        changed,
+        ...(children.length > 0
+          ? { children }
+          : { prevValue: serializePropValue(pv), nextValue: serializePropValue(nv) }),
+      });
+    }
+    return nodes;
+  }
+
+  if (Array.isArray(prev) && Array.isArray(next)) {
+    const nodes: DiffTreeNode[] = [];
+    const maxLen = Math.max(prev.length, next.length);
+    for (let i = 0; i < Math.min(maxLen, 10); i++) {
+      const pv = i < prev.length ? prev[i] : undefined;
+      const nv = i < next.length ? next[i] : undefined;
+      const changed = pv !== nv;
+      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      nodes.push({
+        key: String(i),
+        changed,
+        ...(children.length > 0
+          ? { children }
+          : { prevValue: serializePropValue(pv), nextValue: serializePropValue(nv) }),
+      });
+    }
+    if (prev.length !== next.length) {
+      nodes.push({ key: "length", changed: true, prevValue: String(prev.length), nextValue: String(next.length) });
+    }
+    return nodes;
+  }
+
+  return [];
+}
 
 function serializePropValue(value: unknown): string {
   if (value === undefined) return "undefined";
@@ -278,10 +340,12 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     for (const key of allKeys) {
       if (prevProps[key] !== nextProps[key]) {
         changed.push(key);
+        const diffTree = buildDiffTree(prevProps[key], nextProps[key], 0);
         propDiffs.push({
           name: key,
           prevValue: serializePropValue(prevProps[key]),
           nextValue: serializePropValue(nextProps[key]),
+          ...(diffTree.length > 0 ? { diffTree } : {}),
         });
       }
     }
@@ -305,31 +369,36 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
   }
 
   // Context changed
-  if (fiber.dependencies?.firstContext) {
-    const contextDiffs: ChangedContext[] = [];
-    let ctx = fiber.dependencies.firstContext as {
+  // Context changed — compare memoizedValue between alternate and current fiber dependencies
+  if (fiber.dependencies?.firstContext && alt.dependencies?.firstContext) {
+    type ContextDep = {
       memoizedValue?: unknown;
-      context?: { _currentValue?: unknown; displayName?: string; _context?: { displayName?: string } };
+      context?: { displayName?: string; _context?: { displayName?: string } };
       next?: unknown;
-    } | null;
+    };
+    const contextDiffs: ChangedContext[] = [];
+    let currCtx = fiber.dependencies.firstContext as ContextDep | null;
+    let prevCtx = alt.dependencies.firstContext as ContextDep | null;
     let contextIndex = 0;
-    while (ctx) {
-      if (
-        ctx.context &&
-        ctx.memoizedValue !== ctx.context._currentValue
-      ) {
+    while (currCtx && prevCtx) {
+      const prevValue = prevCtx.memoizedValue;
+      const nextValue = currCtx.memoizedValue;
+      if (prevValue !== nextValue) {
         const contextName =
-          ctx.context.displayName ??
-          ctx.context._context?.displayName ??
+          currCtx.context?.displayName ??
+          currCtx.context?._context?.displayName ??
           `Context(${contextIndex})`;
+        const diffTree = buildDiffTree(prevValue, nextValue, 0);
         contextDiffs.push({
           name: contextName,
-          prevValue: serializePropValue(ctx.memoizedValue),
-          nextValue: serializePropValue(ctx.context._currentValue),
+          prevValue: serializePropValue(prevValue),
+          nextValue: serializePropValue(nextValue),
+          ...(diffTree.length > 0 ? { diffTree } : {}),
         });
       }
       contextIndex++;
-      ctx = ctx.next as typeof ctx;
+      currCtx = currCtx.next as ContextDep | null;
+      prevCtx = prevCtx.next as ContextDep | null;
     }
     if (contextDiffs.length > 0) {
       reasons.push(`Context changed: ${contextDiffs.map((c) => c.name).join(", ")}`);
