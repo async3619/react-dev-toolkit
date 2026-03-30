@@ -18,6 +18,7 @@ export function ProfilerTab() {
     sessions,
     activeSessionId,
     anchorComponent,
+    anchorTypeId,
     setAnchorComponent,
     componentNames,
     startProfiling,
@@ -57,6 +58,7 @@ export function ProfilerTab() {
       {status === "idle" && (
         <IdleView
           anchorComponent={anchorComponent}
+          anchorTypeId={anchorTypeId}
           onAnchorChange={setAnchorComponent}
           componentNames={componentNames}
         />
@@ -207,11 +209,13 @@ function ProfilerToolbar({
 
 function IdleView({
   anchorComponent,
+  anchorTypeId,
   onAnchorChange,
   componentNames,
 }: {
   anchorComponent: string;
-  onAnchorChange: (name: string) => void;
+  anchorTypeId: number | null;
+  onAnchorChange: (name: string, typeId: number | null) => void;
   componentNames: ComponentNameEntry[];
 }) {
   const [query, setQuery] = useState("");
@@ -268,12 +272,15 @@ function IdleView({
   }, [open]);
 
   const select = useCallback(
-    (name: string) => {
-      onAnchorChange(anchorComponent === name ? "" : name);
+    (entry: ComponentNameEntry) => {
+      const isSelected = entry.typeId != null
+        ? anchorTypeId === entry.typeId
+        : anchorComponent === entry.name;
+      onAnchorChange(isSelected ? "" : entry.name, isSelected ? null : entry.typeId);
       setQuery("");
       setOpen(false);
     },
-    [anchorComponent, onAnchorChange],
+    [anchorTypeId, anchorComponent, onAnchorChange],
   );
 
   const onKeyDown = useCallback(
@@ -296,7 +303,7 @@ function IdleView({
           break;
         case "Enter":
           e.preventDefault();
-          if (filtered[highlightIndex]) select(filtered[highlightIndex].name);
+          if (filtered[highlightIndex]) select(filtered[highlightIndex]);
           break;
         case "Escape":
           e.preventDefault();
@@ -307,9 +314,11 @@ function IdleView({
     [open, filtered, highlightIndex, select],
   );
 
-  const selectedEntry = anchorComponent
-    ? componentNames.find((c) => c.name === anchorComponent)
-    : null;
+  const selectedEntry = anchorTypeId != null
+    ? componentNames.find((c) => c.typeId === anchorTypeId)
+    : anchorComponent
+      ? componentNames.find((c) => c.name === anchorComponent)
+      : null;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-gray-500 text-sm gap-4">
@@ -355,7 +364,7 @@ function IdleView({
               <button
                 type="button"
                 onClick={() => {
-                  onAnchorChange("");
+                  onAnchorChange("", null);
                   setQuery("");
                   inputRef.current?.focus();
                 }}
@@ -373,14 +382,16 @@ function IdleView({
                 }`}
               >
                 {filtered.map((entry, i) => {
-                  const isSelected = anchorComponent === entry.name;
+                  const isSelected = entry.typeId != null
+                      ? anchorTypeId === entry.typeId
+                      : anchorComponent === entry.name;
                   const isHighlighted = i === highlightIndex;
                   return (
                     <button
-                      key={entry.name}
+                      key={entry.typeId}
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => select(entry.name)}
+                      onClick={() => select(entry)}
                       onMouseEnter={() => setHighlightIndex(i)}
                       className={`flex items-center w-full px-2 py-1.5 text-xs cursor-pointer ${
                         isHighlighted ? "bg-gray-700" : ""

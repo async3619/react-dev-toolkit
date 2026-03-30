@@ -4,22 +4,29 @@ import type { HocBadge, ProfileFiberNode, ComponentNode } from "@/types";
 
 export interface ComponentNameEntry {
   name: string;
+  typeId: number | null;
   count: number;
 }
 
 export function collectComponentNames(
   tree: ComponentNode[],
 ): ComponentNameEntry[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<number | string, { name: string; typeId: number | null; count: number }>();
   const walk = (nodes: ComponentNode[]) => {
     for (const node of nodes) {
-      counts.set(node.name, (counts.get(node.name) ?? 0) + 1);
+      // Use typeId when available, fall back to name for backward compat
+      const key: number | string = node.typeId ?? node.name;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count++;
+      } else {
+        counts.set(key, { name: node.name, typeId: node.typeId ?? null, count: 1 });
+      }
       walk(node.children);
     }
   };
   walk(tree);
-  return [...counts.entries()]
-    .map(([name, count]) => ({ name, count }))
+  return [...counts.values()]
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
