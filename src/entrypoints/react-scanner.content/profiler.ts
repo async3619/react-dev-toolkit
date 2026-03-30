@@ -284,12 +284,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new WeakSet()): DiffTreeNode[] {
   if (depth > MAX_DIFF_DEPTH) return [];
 
-  // Guard against circular references
+  // Guard against circular references.
+  // When prev === next (same object, e.g. state-change re-render), only add
+  // once to avoid the second guard falsely detecting a cycle.
   if (typeof prev === "object" && prev !== null) {
     if (seen.has(prev)) return [];
     seen.add(prev);
   }
-  if (typeof next === "object" && next !== null) {
+  if (typeof next === "object" && next !== null && next !== prev) {
     if (seen.has(next)) return [];
     seen.add(next);
   }
@@ -301,7 +303,9 @@ function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new W
       const pv = prev[key];
       const nv = next[key];
       const changed = pv !== nv;
-      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      // Always recurse into nested objects/arrays so the tree structure is
+      // visible even when values haven't changed.
+      const children = buildDiffTree(pv, nv, depth + 1, seen);
       nodes.push({
         key,
         changed,
@@ -320,7 +324,7 @@ function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new W
       const pv = i < prev.length ? prev[i] : undefined;
       const nv = i < next.length ? next[i] : undefined;
       const changed = pv !== nv;
-      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      const children = buildDiffTree(pv, nv, depth + 1, seen);
       nodes.push({
         key: String(i),
         changed,
@@ -407,9 +411,7 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
       if (prevProps[key] !== nextProps[key]) {
         changed.push(key);
       }
-      const diffTree = (prevProps[key] !== nextProps[key])
-        ? buildDiffTree(prevProps[key], nextProps[key], 0)
-        : [];
+      const diffTree = buildDiffTree(prevProps[key], nextProps[key], 0);
       propDiffs.push({
         name: key,
         prevValue: serializePropValue(prevProps[key]),
