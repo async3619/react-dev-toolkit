@@ -7,6 +7,49 @@ import { getTypeByTypeId } from "./state";
 
 const componentTags = new Set([0, 1, 11, 14, 15]);
 
+/**
+ * Determines if a component fiber actually rendered during the current commit.
+ *
+ * Mirrors React DevTools' approach (recordProfilingDurations + didFiberRender):
+ * DevTools stores each fiber's reference in fiberInstance.data across ALL commits.
+ * On each commit it compares prevFiber !== nextFiber to detect bail-outs.
+ *
+ * We replicate this with a WeakSet maintained on EVERY commit (not just during
+ * profiling). This means profiling starts with an accurate baseline — matching
+ * React DevTools' behavior where fiberInstance.data is always up-to-date.
+ */
+function didFiberRender(fiber: FiberNode): boolean {
+  return !previousCommitFibers.has(fiber);
+}
+
+/**
+ * Fiber reference tracking — maintained on EVERY commit, not just during profiling.
+ *
+ * React DevTools keeps fiberInstance.data updated across all commits so that
+ * profiling always has a correct baseline. We replicate this by collecting
+ * all component fiber references on every onCommitFiberRoot call.
+ *
+ * - previousCommitFibers: component fibers from the previous commit
+ * - currentCommitFibers: component fibers being collected for the current commit
+ */
+let previousCommitFibers = new WeakSet<FiberNode>();
+let currentCommitFibers = new WeakSet<FiberNode>();
+
+/**
+ * Walks the fiber tree and collects all component fiber references into a set.
+ * This is intentionally lightweight — only WeakSet.add per component fiber.
+ */
+function collectComponentFiberRefs(fiber: FiberNode, set: WeakSet<FiberNode>) {
+  if (componentTags.has(fiber.tag)) {
+    set.add(fiber);
+  }
+  let child = fiber.child;
+  while (child) {
+    collectComponentFiberRefs(child, set);
+    child = child.sibling;
+  }
+}
+
 let profiling = false;
 let targetType: unknown | undefined;
 let targetComponentName: string | undefined;
@@ -40,6 +83,10 @@ export function startProfiling(targetTypeId?: number, targetName?: string) {
   profilerNodeIdCounter = 0;
   profilerNodeToElementMap.clear();
   profilerNodeToFiberMap.clear();
+  // NOTE: previousCommitFibers/currentCommitFibers are NOT reset here.
+  // They are maintained across all commits (even outside profiling) so that
+  // profiling starts with an accurate baseline — matching React DevTools'
+  // fiberInstance.data approach.
 }
 
 export function stopProfiling() {
@@ -48,11 +95,20 @@ export function stopProfiling() {
 
 /**
  * Called from watcher.ts on every onCommitFiberRoot.
- * Only collects data when profiling is active.
+ * Always tracks fiber references for bail-out detection (even when not profiling).
+ * Only collects profiling data when profiling is active.
  */
 export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
-  if (!profiling) return;
   if (!fiberRoot?.current) return;
+
+  // Always track fiber references — swap sets and collect current tree refs.
+  // This runs on every commit so that when profiling starts, previousCommitFibers
+  // already has the correct baseline (matching React DevTools' fiberInstance.data).
+  previousCommitFibers = currentCommitFibers;
+  currentCommitFibers = new WeakSet<FiberNode>();
+  collectComponentFiberRefs(fiberRoot.current, currentCommitFibers);
+
+  if (!profiling) return;
 
   const roots: ProfileFiberNode[] = [];
 
@@ -156,15 +212,22 @@ function walkFiberForProfiling(
       const totalDuration = fiber.actualDuration ?? 0;
       const baseDuration = fiber.treeBaseDuration ?? fiber.selfBaseDuration ?? 0;
 
-      // selfDuration = this component's own cost (subtract ALL children's subtree time)
-      const childrenTotalSum = children.reduce(
-        (sum, c) => sum + c.totalDuration,
-        0,
-      );
-      const selfDuration = Math.max(0, totalDuration - childrenTotalSum);
+      // selfDuration = this component's own render cost.
+      // React accumulates actualDuration by adding each direct fiber child's
+      // actualDuration in bubbleProperties, so:
+      //   fiber.actualDuration = ownRenderTime + Σ directFiberChild.actualDuration
+      // We sum ALL direct fiber children (not just component children) to
+      // avoid "leaking" time from intermediate non-component fibers (DOM
+      // elements, Context.Provider, Fragment, etc.) into selfDuration.
+      let directChildrenDuration = 0;
+      let fiberChild = fiber.child;
+      while (fiberChild) {
+        directChildrenDuration += fiberChild.actualDuration ?? 0;
+        fiberChild = fiberChild.sibling;
+      }
+      const selfDuration = Math.max(0, totalDuration - directChildrenDuration);
 
-      // Component rendered itself if it had self-cost
-      const didRender = selfDuration > 0;
+      const didRender = didFiberRender(fiber);
 
       const nodeId = nextProfilerNodeId();
       profilerNodeToFiberMap.set(nodeId, fiber);
@@ -221,12 +284,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new WeakSet()): DiffTreeNode[] {
   if (depth > MAX_DIFF_DEPTH) return [];
 
-  // Guard against circular references
+  // Guard against circular references.
+  // When prev === next (same object, e.g. state-change re-render), only add
+  // once to avoid the second guard falsely detecting a cycle.
   if (typeof prev === "object" && prev !== null) {
     if (seen.has(prev)) return [];
     seen.add(prev);
   }
-  if (typeof next === "object" && next !== null) {
+  if (typeof next === "object" && next !== null && next !== prev) {
     if (seen.has(next)) return [];
     seen.add(next);
   }
@@ -238,7 +303,9 @@ function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new W
       const pv = prev[key];
       const nv = next[key];
       const changed = pv !== nv;
-      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      // Always recurse into nested objects/arrays so the tree structure is
+      // visible even when values haven't changed.
+      const children = buildDiffTree(pv, nv, depth + 1, seen);
       nodes.push({
         key,
         changed,
@@ -257,7 +324,7 @@ function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new W
       const pv = i < prev.length ? prev[i] : undefined;
       const nv = i < next.length ? next[i] : undefined;
       const changed = pv !== nv;
-      const children = changed ? buildDiffTree(pv, nv, depth + 1, seen) : [];
+      const children = buildDiffTree(pv, nv, depth + 1, seen);
       nodes.push({
         key: String(i),
         changed,
@@ -316,6 +383,31 @@ function serializePropValue(value: unknown): string {
   }
 }
 
+/**
+ * Walk up fiber.return to find the nearest ancestor component that actually
+ * rendered in this commit. A fiber reference change alone is not sufficient —
+ * React creates WIP fibers for intermediate nodes during reconciliation
+ * without executing their render functions. We verify by checking for
+ * observable changes in memoizedProps or memoizedState.
+ */
+function findRenderedAncestorName(fiber: FiberNode): string | null {
+  let parent = fiber.return;
+  while (parent) {
+    if (componentTags.has(parent.tag)) {
+      const alt = parent.alternate;
+      const didParentRender = alt === null
+        || alt.memoizedProps !== parent.memoizedProps
+        || alt.memoizedState !== parent.memoizedState;
+      if (didParentRender) {
+        const nameResult = getFiberName(parent);
+        if (nameResult) return nameResult.name;
+      }
+    }
+    parent = parent.return;
+  }
+  return null;
+}
+
 function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[]; changedProps?: ChangedProp[]; changedContexts?: ChangedContext[] } {
   const reasons: string[] = [];
   let changedHookIndices: number[] | undefined;
@@ -327,10 +419,12 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     return { reasons: ["First render"] };
   }
 
-  // Props changed
+  // Props changed — compare individual keys regardless of object reference.
+  // (prevProps === nextProps can happen on state-change re-renders, but we
+  // still compare keys so we don't miss anything.)
   const prevProps = alt.memoizedProps;
   const nextProps = fiber.memoizedProps;
-  if (prevProps && nextProps && prevProps !== nextProps) {
+  if (prevProps && nextProps) {
     const changed: string[] = [];
     const propDiffs: ChangedProp[] = [];
     const allKeys = new Set([
@@ -407,7 +501,12 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
   }
 
   if (reasons.length === 0) {
-    reasons.push("Parent re-rendered");
+    // Walk up the fiber tree to find the nearest ancestor component that
+    // actually rendered, so the user knows exactly who triggered this render.
+    const parentName = findRenderedAncestorName(fiber);
+    reasons.push(parentName
+      ? `Parent re-rendered: ${parentName}`
+      : "Parent re-rendered");
   }
 
   return { reasons, changedHookIndices, changedProps, changedContexts };
