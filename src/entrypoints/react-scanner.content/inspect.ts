@@ -1,15 +1,41 @@
+import { getFiberFromHostInstance, isCompositeFiber, getDisplayName, type Fiber } from "bippy";
 import { elementToNodeMap } from "./state";
 import { highlightElement, hideHighlight, OVERLAY_ATTR } from "./highlight";
 
 let inspecting = false;
 
 function findComponentForElement(el: Element): { id: number; name: string } | null {
+  // Primary: use the scan-populated elementToNodeMap (walks DOM parents)
   let current: Element | null = el;
   while (current) {
     const node = elementToNodeMap.get(current);
     if (node) return node;
     current = current.parentElement;
   }
+
+  // Fallback: use bippy to go directly from DOM to fiber
+  const fiber = getFiberFromHostInstance(el);
+  if (!fiber) return null;
+
+  // Walk up to find the nearest composite (component) fiber
+  let fiberCursor: Fiber | null = fiber;
+  while (fiberCursor) {
+    if (isCompositeFiber(fiberCursor)) {
+      const name = getDisplayName(fiberCursor.type);
+      if (name) {
+        // Check if this fiber's host element is in elementToNodeMap
+        const hostEl = fiberCursor.stateNode;
+        if (hostEl instanceof Element) {
+          const mapped = elementToNodeMap.get(hostEl);
+          if (mapped) return mapped;
+        }
+        // Cannot return a valid nodeId without a mapping
+        break;
+      }
+    }
+    fiberCursor = fiberCursor.return;
+  }
+
   return null;
 }
 
