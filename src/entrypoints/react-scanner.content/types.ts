@@ -1,22 +1,7 @@
-export interface FiberNode {
-  tag: number;
-  type: unknown;
-  child: FiberNode | null;
-  sibling: FiberNode | null;
-  return: FiberNode | null;
-  alternate: FiberNode | null;
-  memoizedProps: Record<string, unknown>;
-  memoizedState: unknown;
-  stateNode: unknown;
-  dependencies?: { firstContext: unknown } | null;
-  _debugSource?: { fileName: string; lineNumber: number; columnNumber?: number };
-  // Profiling fields (available in React dev builds)
-  actualDuration?: number;
-  selfBaseDuration?: number;
-  treeBaseDuration?: number;
-  /** Hook type names in call order (React dev builds only) */
-  _debugHookTypes?: string[] | null;
-}
+import type { SourceMapConsumer } from "source-map-js";
+
+// Re-export bippy's Fiber type as the canonical fiber type for the scanner
+export type { Fiber } from "bippy";
 
 export interface SourceLocation {
   fileName: string;
@@ -86,12 +71,4 @@ export interface DispatcherRef {
   set: (v: unknown) => void;
 }
 
-export type HookType = {
-  onCommitFiberRoot?: (...args: unknown[]) => void;
-  inject?: (renderer: unknown) => number;
-  renderers?: Map<number, unknown>;
-};
-
-// Re-export for convenience
-import type { SourceMapConsumer } from "source-map-js";
 export type { SourceMapConsumer };

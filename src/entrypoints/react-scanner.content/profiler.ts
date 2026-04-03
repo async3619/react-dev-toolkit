@@ -1,11 +1,20 @@
-import type { FiberNode } from "./types";
+import {
+  type Fiber,
+  type FiberRoot,
+  isCompositeFiber,
+  getDisplayName,
+  getNearestHostFiber,
+  getTimings,
+  didFiberRender,
+  traverseProps,
+  traverseContexts,
+  traverseFiber,
+} from "bippy";
 import type { ProfileCommitData, ProfileFiberNode, HookInfo, ChangedProp, ChangedContext, DiffTreeNode } from "@/types";
 import { getFiberName, findNearestDomElement } from "./fiber";
 import { highlightElement, hideHighlight } from "./highlight";
 import { inspectHooksOfFiberDirect } from "./hooks";
 import { getTypeByTypeId } from "./state";
-
-const componentTags = new Set([0, 1, 11, 14, 15]);
 
 let profiling = false;
 let targetType: unknown | undefined;
@@ -17,7 +26,7 @@ let profilerNodeIdCounter = 0;
 export const profilerNodeToElementMap = new Map<number, Element>();
 
 /** Maps profiler node IDs to fibers for hook inspection */
-const profilerNodeToFiberMap = new Map<number, FiberNode>();
+const profilerNodeToFiberMap = new Map<number, Fiber>();
 
 function nextProfilerNodeId(): number {
   return profilerNodeIdCounter++;
@@ -50,18 +59,15 @@ export function stopProfiling() {
  * Called from watcher.ts on every onCommitFiberRoot.
  * Only collects data when profiling is active.
  */
-export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
+export function onCommitForProfiling(fiberRoot: FiberRoot) {
   if (!profiling) return;
   if (!fiberRoot?.current) return;
 
   const roots: ProfileFiberNode[] = [];
-
   const hasTarget = targetType !== undefined || targetComponentName !== undefined;
 
   if (hasTarget) {
-    const targetFibers = targetType !== undefined
-      ? findTargetFibersByType(fiberRoot.current, targetType)
-      : findTargetFibersByName(fiberRoot.current, targetComponentName!);
+    const targetFibers = findTargetFibers(fiberRoot.current);
     for (const fiber of targetFibers) {
       walkFiberForProfiling(fiber, roots);
     }
@@ -89,60 +95,24 @@ export function onCommitForProfiling(fiberRoot: { current?: FiberNode }) {
   window.postMessage({ type: "PROFILING_COMMIT", commit }, "*");
 }
 
-function findTargetFibersByType(fiber: FiberNode, matchType: unknown): FiberNode[] {
-  const results: FiberNode[] = [];
-  collectTargetFibersByType(fiber, matchType, results);
-  return results;
-}
-
-function collectTargetFibersByType(
-  fiber: FiberNode,
-  matchType: unknown,
-  out: FiberNode[],
-): void {
-  if (componentTags.has(fiber.tag) && fiber.type === matchType) {
-    out.push(fiber);
-    return;
-  }
-  let child = fiber.child;
-  while (child) {
-    collectTargetFibersByType(child, matchType, out);
-    child = child.sibling;
-  }
-}
-
-function findTargetFibersByName(fiber: FiberNode, name: string): FiberNode[] {
-  const results: FiberNode[] = [];
-  collectTargetFibersByName(fiber, name, results);
-  return results;
-}
-
-function collectTargetFibersByName(
-  fiber: FiberNode,
-  name: string,
-  out: FiberNode[],
-): void {
-  if (componentTags.has(fiber.tag)) {
-    const nameResult = getFiberName(fiber);
-    if (nameResult && nameResult.name === name) {
-      out.push(fiber);
-      return;
+function findTargetFibers(root: Fiber): Fiber[] {
+  const results: Fiber[] = [];
+  traverseFiber(root, (fiber) => {
+    if (!isCompositeFiber(fiber)) return;
+    if (targetType !== undefined && fiber.type === targetType) {
+      results.push(fiber);
+    } else if (targetComponentName !== undefined) {
+      const name = getDisplayName(fiber.type);
+      if (name === targetComponentName) {
+        results.push(fiber);
+      }
     }
-  }
-  let child = fiber.child;
-  while (child) {
-    collectTargetFibersByName(child, name, out);
-    child = child.sibling;
-  }
+  });
+  return results;
 }
 
-function walkFiberForProfiling(
-  fiber: FiberNode,
-  out: ProfileFiberNode[],
-): void {
-  const isComponent = componentTags.has(fiber.tag);
-
-  if (isComponent) {
+function walkFiberForProfiling(fiber: Fiber, out: ProfileFiberNode[]): void {
+  if (isCompositeFiber(fiber)) {
     const nameResult = getFiberName(fiber);
     if (nameResult) {
       const children: ProfileFiberNode[] = [];
@@ -152,19 +122,9 @@ function walkFiberForProfiling(
         child = child.sibling;
       }
 
-      // totalDuration = full subtree time (includes children)
-      const totalDuration = fiber.actualDuration ?? 0;
-      const baseDuration = fiber.treeBaseDuration ?? fiber.selfBaseDuration ?? 0;
-
-      // selfDuration = this component's own cost (subtract ALL children's subtree time)
-      const childrenTotalSum = children.reduce(
-        (sum, c) => sum + c.totalDuration,
-        0,
-      );
-      const selfDuration = Math.max(0, totalDuration - childrenTotalSum);
-
-      // Component rendered itself if it had self-cost
-      const didRender = selfDuration > 0;
+      const { selfTime, totalTime } = getTimings(fiber);
+      const baseDuration = fiber.treeBaseDuration ?? (fiber as unknown as { selfBaseDuration?: number }).selfBaseDuration ?? 0;
+      const rendered = didFiberRender(fiber);
 
       const nodeId = nextProfilerNodeId();
       profilerNodeToFiberMap.set(nodeId, fiber);
@@ -177,7 +137,7 @@ function walkFiberForProfiling(
       let changedHookIndices: number[] | undefined;
       let changedProps: ChangedProp[] | undefined;
       let changedContexts: ChangedContext[] | undefined;
-      if (didRender) {
+      if (rendered) {
         const result = detectRenderReasons(fiber);
         renderReasons = result.reasons;
         changedHookIndices = result.changedHookIndices;
@@ -189,11 +149,11 @@ function walkFiberForProfiling(
         nodeId,
         name: nameResult.name,
         hocs: nameResult.hocs.length > 0 ? nameResult.hocs : undefined,
-        selfDuration,
-        totalDuration,
+        selfDuration: selfTime,
+        totalDuration: totalTime,
         baseDuration,
         children,
-        didRender,
+        didRender: rendered,
         renderReasons,
         changedHookIndices,
         changedProps,
@@ -211,6 +171,8 @@ function walkFiberForProfiling(
   }
 }
 
+// --- Value serialization for diffs ---
+
 const MAX_SERIALIZED_LENGTH = 200;
 const MAX_DIFF_DEPTH = 10;
 
@@ -221,7 +183,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function buildDiffTree(prev: unknown, next: unknown, depth: number, seen = new WeakSet()): DiffTreeNode[] {
   if (depth > MAX_DIFF_DEPTH) return [];
 
-  // Guard against circular references
   if (typeof prev === "object" && prev !== null) {
     if (seen.has(prev)) return [];
     seen.add(prev);
@@ -279,7 +240,7 @@ function serializePropValue(value: unknown): string {
   if (value === undefined) return "undefined";
   if (value === null) return "null";
   if (typeof value === "function") {
-    return value.name ? `ƒ ${value.name}()` : "ƒ ()";
+    return value.name ? `\u0192 ${value.name}()` : "\u0192 ()";
   }
   if (typeof value === "symbol") return value.toString();
   if (typeof value === "string") return JSON.stringify(value);
@@ -301,66 +262,64 @@ function serializePropValue(value: unknown): string {
 
   try {
     const json = JSON.stringify(value, (_key, v) => {
-      if (typeof v === "function") return v.name ? `ƒ ${v.name}()` : "ƒ ()";
+      if (typeof v === "function") return v.name ? `\u0192 ${v.name}()` : "\u0192 ()";
       if (typeof v === "symbol") return v.toString();
       if (typeof v === "undefined") return "undefined";
       return v;
     });
     if (json && json.length > MAX_SERIALIZED_LENGTH) {
-      return json.slice(0, MAX_SERIALIZED_LENGTH) + "…";
+      return `${json.slice(0, MAX_SERIALIZED_LENGTH)}\u2026`;
     }
     return json ?? "undefined";
   } catch {
     if (Array.isArray(value)) return `Array(${value.length})`;
-    return "{…}";
+    return "{\u2026}";
   }
 }
 
-function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHookIndices?: number[]; changedProps?: ChangedProp[]; changedContexts?: ChangedContext[] } {
+// --- Render reason detection ---
+
+function detectRenderReasons(fiber: Fiber): {
+  reasons: string[];
+  changedHookIndices?: number[];
+  changedProps?: ChangedProp[];
+  changedContexts?: ChangedContext[];
+} {
   const reasons: string[] = [];
   let changedHookIndices: number[] | undefined;
   let changedProps: ChangedProp[] | undefined;
   let changedContexts: ChangedContext[] | undefined;
-  const alt = fiber.alternate;
 
-  if (!alt) {
+  if (!fiber.alternate) {
     return { reasons: ["First render"] };
   }
 
-  // Props changed
-  const prevProps = alt.memoizedProps;
-  const nextProps = fiber.memoizedProps;
-  if (prevProps && nextProps && prevProps !== nextProps) {
-    const changed: string[] = [];
-    const propDiffs: ChangedProp[] = [];
-    const allKeys = new Set([
-      ...Object.keys(prevProps),
-      ...Object.keys(nextProps),
-    ]);
-    for (const key of allKeys) {
-      if (prevProps[key] !== nextProps[key]) {
-        changed.push(key);
-        const diffTree = buildDiffTree(prevProps[key], nextProps[key], 0);
-        propDiffs.push({
-          name: key,
-          prevValue: serializePropValue(prevProps[key]),
-          nextValue: serializePropValue(nextProps[key]),
-          ...(diffTree.length > 0 ? { diffTree } : {}),
-        });
-      }
+  // Props changed — using bippy's traverseProps
+  const propDiffs: ChangedProp[] = [];
+  const changedPropNames: string[] = [];
+  traverseProps(fiber, (name, next, prev) => {
+    if (next !== prev) {
+      changedPropNames.push(name);
+      const diffTree = buildDiffTree(prev, next, 0);
+      propDiffs.push({
+        name,
+        prevValue: serializePropValue(prev),
+        nextValue: serializePropValue(next),
+        ...(diffTree.length > 0 ? { diffTree } : {}),
+      });
     }
-    if (changed.length > 0) {
-      reasons.push(`Props changed: ${changed.join(", ")}`);
-      changedProps = propDiffs;
-    }
+  });
+  if (changedPropNames.length > 0) {
+    reasons.push(`Props changed: ${changedPropNames.join(", ")}`);
+    changedProps = propDiffs;
   }
 
-  // Hook changes — compare raw memoizedState values, map to hook tree IDs
-  if (alt.memoizedState !== fiber.memoizedState) {
+  // Hook changes — custom detection for hook tree ID mapping
+  if (fiber.alternate.memoizedState !== fiber.memoizedState) {
     const indices = detectHookChanges(
-      alt.memoizedState,
+      fiber.alternate.memoizedState,
       fiber.memoizedState,
-      fiber._debugHookTypes,
+      (fiber as unknown as { _debugHookTypes?: string[] | null })._debugHookTypes,
     );
     if (indices.length > 0) {
       changedHookIndices = indices;
@@ -368,42 +327,27 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
     }
   }
 
-  // Context changed
-  // Context changed — compare memoizedValue between alternate and current fiber dependencies
-  if (fiber.dependencies?.firstContext && alt.dependencies?.firstContext) {
-    type ContextDep = {
-      memoizedValue?: unknown;
-      context?: { displayName?: string; _context?: { displayName?: string } };
-      next?: unknown;
-    };
-    const contextDiffs: ChangedContext[] = [];
-    let currCtx = fiber.dependencies.firstContext as ContextDep | null;
-    let prevCtx = alt.dependencies.firstContext as ContextDep | null;
-    let contextIndex = 0;
-    while (currCtx && prevCtx) {
-      const prevValue = prevCtx.memoizedValue;
-      const nextValue = currCtx.memoizedValue;
-      if (prevValue !== nextValue) {
-        const contextName =
-          currCtx.context?.displayName ??
-          currCtx.context?._context?.displayName ??
-          `Context(${contextIndex})`;
-        const diffTree = buildDiffTree(prevValue, nextValue, 0);
-        contextDiffs.push({
-          name: contextName,
-          prevValue: serializePropValue(prevValue),
-          nextValue: serializePropValue(nextValue),
-          ...(diffTree.length > 0 ? { diffTree } : {}),
-        });
-      }
-      contextIndex++;
-      currCtx = currCtx.next as ContextDep | null;
-      prevCtx = prevCtx.next as ContextDep | null;
+  // Context changed — using bippy's traverseContexts
+  const contextDiffs: ChangedContext[] = [];
+  traverseContexts(fiber, (currCtx, prevCtx) => {
+    if (!currCtx || !prevCtx) return;
+    if (currCtx.memoizedValue !== prevCtx.memoizedValue) {
+      const contextName =
+        (currCtx.context as unknown as { displayName?: string })?.displayName ??
+        (currCtx.context as unknown as { _context?: { displayName?: string } })?._context?.displayName ??
+        "Context";
+      const diffTree = buildDiffTree(prevCtx.memoizedValue, currCtx.memoizedValue, 0);
+      contextDiffs.push({
+        name: contextName,
+        prevValue: serializePropValue(prevCtx.memoizedValue),
+        nextValue: serializePropValue(currCtx.memoizedValue),
+        ...(diffTree.length > 0 ? { diffTree } : {}),
+      });
     }
-    if (contextDiffs.length > 0) {
-      reasons.push(`Context changed: ${contextDiffs.map((c) => c.name).join(", ")}`);
-      changedContexts = contextDiffs;
-    }
+  });
+  if (contextDiffs.length > 0) {
+    reasons.push(`Context changed: ${contextDiffs.map((c) => c.name).join(", ")}`);
+    changedContexts = contextDiffs;
   }
 
   if (reasons.length === 0) {
@@ -414,8 +358,6 @@ function detectRenderReasons(fiber: FiberNode): { reasons: string[]; changedHook
 }
 
 // --- Hook change detection ---
-// Uses raw memoizedState comparison (avoids serialization false positives)
-// and maps to hook tree IDs via _debugHookTypes
 
 interface HookNode {
   memoizedState: unknown;
@@ -432,11 +374,9 @@ function isHookNode(v: unknown): v is HookNode {
 }
 
 /**
- * Hooks that can CAUSE a re-render (matching React DevTools' isStateEditable).
+ * Hooks that can CAUSE a re-render.
  * Only useState and useReducer — their memoizedState is the raw state value,
  * so reference comparison works reliably.
- * Other hooks (useMemo, useEffect, useTransition, etc.) change as a RESULT
- * of re-rendering and should not be reported as causes.
  */
 const STATEFUL_HOOK_TYPES = new Set([
   "useState",
@@ -452,10 +392,9 @@ const NO_MEMOIZED_STATE_HOOKS = new Set([
 ]);
 
 /**
- * Composite hooks that create EXTRA memoizedState nodes internally,
- * beyond the one tracked by _debugHookTypes.
- * - useSyncExternalStore: creates 1 extra node (internal mountEffect for subscription)
- * - useTransition: creates 1 extra node (startTransition function)
+ * Composite hooks that create EXTRA memoizedState nodes internally.
+ * - useSyncExternalStore: 1 extra (internal mountEffect for subscription)
+ * - useTransition: 1 extra (startTransition function)
  */
 const EXTRA_HOOK_NODES: Record<string, number> = {
   useSyncExternalStore: 1,
@@ -464,8 +403,7 @@ const EXTRA_HOOK_NODES: Record<string, number> = {
 
 /**
  * Detect changed hooks by walking raw memoizedState linked lists.
- * Returns hook tree IDs (1-based, matching buildHookTree's nativeHookID assignment)
- * so that sidebar highlighting works correctly.
+ * Returns hook tree IDs (1-based) so sidebar highlighting works correctly.
  */
 function detectHookChanges(
   prevState: unknown,
@@ -474,27 +412,18 @@ function detectHookChanges(
 ): number[] {
   const ids: number[] = [];
 
-  if (!debugHookTypes) {
-    return ids;
-  }
+  if (!debugHookTypes) return ids;
 
   let prev = prevState;
   let next = nextState;
-  // Matches buildHookTree: nativeHookID starts at 1, increments for every
-  // hook EXCEPT Context, DebugValue, and "use" (which get id=null)
   let treeId = 1;
 
   for (let i = 0; i < debugHookTypes.length; i++) {
     const hookType = debugHookTypes[i];
 
-    // These hooks don't create memoizedState entries and get no tree ID
-    if (NO_MEMOIZED_STATE_HOOKS.has(hookType)) {
-      continue;
-    }
-
+    if (NO_MEMOIZED_STATE_HOOKS.has(hookType)) continue;
     if (!isHookNode(prev) || !isHookNode(next)) break;
 
-    // Check stateful hooks for changes using raw reference comparison
     if (STATEFUL_HOOK_TYPES.has(hookType)) {
       if (prev.memoizedState !== next.memoizedState) {
         ids.push(treeId);
@@ -505,9 +434,6 @@ function detectHookChanges(
     prev = (prev as HookNode).next;
     next = (next as HookNode).next;
 
-    // Composite hooks (useSyncExternalStore, useTransition) create extra
-    // internal memoizedState nodes that aren't tracked in _debugHookTypes.
-    // Skip them to keep the linked list aligned.
     const extra = EXTRA_HOOK_NODES[hookType] ?? 0;
     for (let j = 0; j < extra; j++) {
       if (!isHookNode(prev) || !isHookNode(next)) break;

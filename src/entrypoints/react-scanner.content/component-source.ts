@@ -1,4 +1,5 @@
-import type { ComponentSourceInfo, FiberNode, SourceLocation } from "./types";
+import type { Fiber } from "bippy";
+import type { ComponentSourceInfo, SourceLocation } from "./types";
 import { resolveSourceFromMap } from "./source-map";
 
 const sourceLocationCache = new WeakMap<object, SourceLocation | null>();
@@ -152,7 +153,7 @@ function classifyFileName(fileName: string): "first-party" | "third-party" {
   return fileName.includes("node_modules") ? "third-party" : "first-party";
 }
 
-export function getComponentSource(fiber: FiberNode): ComponentSourceInfo {
+export function getComponentSource(fiber: Fiber): ComponentSourceInfo {
   try {
     // Strategy 1: _debugSource (React 17-18 dev builds)
     const debugSource = fiber._debugSource;

@@ -1,23 +1,47 @@
-import type { ComponentNode, HookType, FiberNode } from "./types";
+import { instrument, getRDTHook, type FiberRoot, type Fiber } from "bippy";
+import type { ComponentNode } from "./types";
 import { resetNodeMaps } from "./state";
 import { loadSourceMaps, fnSourceCache } from "./source-map";
-import { walkFiber, findReactRoots } from "./fiber";
+import { walkFiber } from "./fiber";
 import { hideHighlight, OVERLAY_ATTR } from "./highlight";
 import { onCommitForProfiling } from "./profiler";
 
-// Buffer to store the latest scan result before the panel connects
 let bufferedMessage: Record<string, unknown> | null = null;
 
 let observer: MutationObserver | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let reactHooked = false;
 let watching = false;
+let instrumented = false;
+
+/** Fiber roots collected from instrument() callbacks */
+const fiberRoots = new Set<FiberRoot>();
+
+function collectExistingRoots() {
+  try {
+    const hook = getRDTHook();
+    if (!hook?.renderers) return;
+    for (const [id] of hook.renderers) {
+      const roots = (hook as unknown as { getFiberRoots?: (id: number) => Set<FiberRoot> }).getFiberRoots?.(id);
+      if (roots) {
+        for (const root of roots) {
+          fiberRoots.add(root);
+        }
+      }
+    }
+  } catch {
+    // hook not available yet
+  }
+}
 
 export function scanTree(forcePost = false) {
   resetNodeMaps();
-  const fiberRoots = findReactRoots();
 
-  if (fiberRoots.length === 0) {
+  // Ensure we have any existing roots on first scan
+  if (fiberRoots.size === 0) {
+    collectExistingRoots();
+  }
+
+  if (fiberRoots.size === 0) {
     const msg = { type: "REACT_NOT_FOUND" };
     bufferedMessage = msg;
     if (watching || forcePost) {
@@ -28,7 +52,9 @@ export function scanTree(forcePost = false) {
 
   const tree: ComponentNode[] = [];
   for (const root of fiberRoots) {
-    walkFiber(root, tree);
+    if (root.current) {
+      walkFiber(root.current, tree);
+    }
   }
 
   const msg = { type: "REACT_TREE_RESULT", tree };
@@ -44,54 +70,32 @@ function debouncedScan() {
 }
 
 export function hookIntoReact() {
-  if (reactHooked) return;
-  const hook = (window as unknown as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: HookType }).__REACT_DEVTOOLS_GLOBAL_HOOK__;
-  if (!hook) return;
-  reactHooked = true;
+  if (instrumented) return;
+  instrumented = true;
 
-  // Patch onCommitFiberRoot for already-registered renderers
-  const originalCommit = hook.onCommitFiberRoot;
-  hook.onCommitFiberRoot = (...args: unknown[]) => {
-    originalCommit?.apply(hook, args);
-    debouncedScan();
-    onCommitForProfiling(args[1] as { current?: FiberNode });
-  };
-
-  // Patch inject to catch future renderers
-  const originalInject = hook.inject;
-  hook.inject = (renderer: unknown) => {
-    const id = originalInject?.call(hook, renderer) ?? 0;
-    // Re-patch in case inject overwrites onCommitFiberRoot
-    const currentCommit = hook.onCommitFiberRoot;
-    if (currentCommit && !currentCommit.toString().includes("debouncedScan")) {
-      hook.onCommitFiberRoot = (...args: unknown[]) => {
-        currentCommit.apply(hook, args);
-        debouncedScan();
-        onCommitForProfiling(args[1] as { current?: FiberNode });
-      };
-    }
-    return id;
-  };
+  instrument({
+    onCommitFiberRoot(_rendererID, root) {
+      fiberRoots.add(root);
+      debouncedScan();
+      onCommitForProfiling(root);
+    },
+  });
 }
 
 export function startWatching() {
   if (watching) {
-    // Already watching — just re-scan to respond to a retry
     scanTree();
     return;
   }
   watching = true;
 
-  // Send buffered result immediately so the panel doesn't wait for a fresh scan
   if (bufferedMessage) {
     window.postMessage(bufferedMessage, "*");
   }
 
-  // Then do a fresh scan for the most up-to-date tree
   scanTree();
   hookIntoReact();
 
-  // Load source maps in background, clear cache, then re-scan with source classification
   loadSourceMaps().then(() => {
     fnSourceCache.clear();
     scanTree();

@@ -1,10 +1,10 @@
-import type { FiberNode } from "./types";
+import type { Fiber } from "bippy";
 
 export let nodeIdCounter = 0;
 export const nodeToElementMap = new Map<number, Element>();
 export const elementToNodeMap = new Map<Element, { id: number; name: string }>();
 export const nodeToFunctionMap = new Map<number, Function>();
-export const nodeToFiberMap = new Map<number, FiberNode>();
+export const nodeToFiberMap = new Map<number, Fiber>();
 
 /** Maps fiber.type references to stable typeIds (persists across tree rebuilds) */
 let typeIdCounter = 0;

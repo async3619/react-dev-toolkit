@@ -1,6 +1,7 @@
 import ErrorStackParser from "error-stack-parser";
 
-import type { DispatcherRef, FiberNode, HookInfo, HookLogEntry, HookSource } from "./types";
+import { getLatestFiber, type Fiber } from "bippy";
+import type { DispatcherRef, HookInfo, HookLogEntry, HookSource } from "./types";
 import { nodeToFiberMap } from "./state";
 import { resolveSourceMapLocation } from "./source-map";
 import { serializeValue } from "./serialize";
@@ -418,9 +419,9 @@ function parseTrimmedStack(
 
 // --- Context setup ---
 
-function setupContexts(fiber: FiberNode): Map<Record<string, unknown>, unknown> {
+function setupContexts(fiber: Fiber): Map<Record<string, unknown>, unknown> {
   const contextMap = new Map<Record<string, unknown>, unknown>();
-  let current: FiberNode | null = fiber;
+  let current: Fiber | null = fiber;
 
   while (current) {
     if (current.tag === 10) {
@@ -593,7 +594,7 @@ function guessHookType(memoizedState: unknown): string {
   return "useState";
 }
 
-function buildFallbackHookList(fiber: FiberNode): HookInfo[] {
+function buildFallbackHookList(fiber: Fiber): HookInfo[] {
   const hooks: HookInfo[] = [];
   let current = fiber.memoizedState as { memoizedState: unknown; next: unknown } | null;
   let hookId = 1;
@@ -699,12 +700,9 @@ export function inspectHooksOfFiber(nodeId: number): HookInfo[] | null {
  * When fixToCurrent is true (default), navigates to the current fiber via alternate.
  * When false, uses the fiber as-is (needed for inspecting the previous fiber during profiling).
  */
-export function inspectHooksOfFiberDirect(fiber: FiberNode, fixToCurrent = true): HookInfo[] | null {
+export function inspectHooksOfFiberDirect(fiber: Fiber, fixToCurrent = true): HookInfo[] | null {
   try {
-    let target = fiber;
-    if (fixToCurrent && target.alternate && target.alternate.alternate === target) {
-      target = target.alternate;
-    }
+    let target = fixToCurrent ? getLatestFiber(fiber) : fiber;
 
     const type = target.type;
     let componentFn: ((...args: unknown[]) => unknown) | null = null;
